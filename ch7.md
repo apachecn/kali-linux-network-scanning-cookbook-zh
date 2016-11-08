@@ -87,7 +87,7 @@ Nikto 识别潜在的可疑文件，通过引用`robots.txt`，爬取网站页�
 
 ## 7.2 使用 SSLScan 扫描 SSL/TLS
 
-SSLScan 是 Kali 中的完整的命令行工具，用于评估远程 Web 服务的 SSL/TLS 的安全性。这个秘籍中，我们会讨论如何对 Web 应用执行 SSLScan，以及如何解释或操作输出结果。
+SSLScan 是 Kali 中的集成命令行工具，用于评估远程 Web 服务的 SSL/TLS 的安全性。这个秘籍中，我们会讨论如何对 Web 应用执行 SSLScan，以及如何解释或操作输出结果。
 
 ### 准备
 
@@ -176,6 +176,87 @@ root@KaliLinux:~# sslscan --starttls 172.16.36.135:25 | grep Accepted | grep "40
     Accepted  TLSv1  40 bits   EXP-RC4-MD5
 ```
 
-## 工作原理
+### 工作原理
 
 SSL/TLS 会话通常通过客户端和服务端之间的协商来建立。这些协商会考虑到每一端配置的密文首选项，并且尝试判断双方都支持的最安全的方案。SSLScan 的原理是遍历已知密文和密钥长度的列表，并尝试使用每个配置来和远程服务器协商会话。这允许 SSLScan 枚举受支持的密文和密钥。
+
+## 7.3 使用 SSLyze 扫描 SSL/TLS
+
+SSLyze 是 Kali 中的集成命令行工具，用于评估远程 Web 服务的 SSL/TLS 的安全性。这个秘籍中，我们会讨论如何对 Web 应用执行 SSLyze，以及如何解释或操作输出结果。
+
+### 准备
+
+为了使用 SSLScan 对目标执行 SSL/TLS 分析，你需要拥有运行一个或多个 Web 应用的远程系统。所提供的例子中，我们使用 Metasploitable2 实例来完成任务。 Metasploitable2 拥有多种预安装的漏洞 Web 应用，运行在 TCP 80 端口上。配置 Metasploitable2 的更多信息请参考第一章中的“安装 Metasploitable2”秘籍。
+
+### 操作步骤
+
+另一个用于对 SSL/TLS 配置执行彻底排查和分析的工具就是 SSLyze。为了使用 SSLyze 执行基本的测试，需要包含目标服务器作为参数，以及`--regular`参数。这包括 SSLv2、SSLv3、TLSv1、renegotiation、resumption、证书信息、HTTP GET 响应状态码，以及压缩支持的测试。
+
+```
+root@KaliLinux:~# sslyze google.com --regular
+
+ REGISTERING AVAILABLE PLUGINS 
+ ----------------------------
+
+ PluginSessionResumption  
+ PluginCertInfo  
+ PluginOpenSSLCipherSuites  
+ PluginSessionRenegotiation  
+ PluginCompression
+
+ CHECKING HOST(S) AVAILABILITY 
+ ----------------------------
+ 
+   google.com:443                      => 74.125.226.166:443
+   
+ SCAN RESULTS FOR GOOGLE.COM:443 - 74.125.226.166:443 ---------------------------------------------------
+ 
+  * Compression :
+        Compression Support:      Disabled
+        
+  * Certificate :      
+      Validation w/ Mozilla's CA Store:  Certificate is Trusted                   
+      Hostname Validation:               OK - Subject Alternative Name Matches      
+      SHA1 Fingerprint:                  EF8845009EED2B2FE95D23318C8CF30F1052B596
+      Common Name:                       *.google.com                             
+      Issuer:                            /C=US/O=Google Inc/CN=Google Internet Authority G2      Serial 
+      Number:                     5E0EFAF2A99854BD                         Not 
+      Before:                        Mar 12 09:53:40 2014 GMT                 
+      Not After:                         Jun 10 00:00:00 2014 GMT                 
+      Signature Algorithm:               sha1WithRSAEncryption                    
+      Key Size:                          2048                                     
+      X509v3 Subject Alternative Name:   DNS:*.google.com, DNS:*. android.com, DNS:*.appengine.google.com, DNS:*.cloud.google.com, DNS:*. google-analytics.com, DNS:*.google.ca, DNS:*.google.cl, DNS:*.google. co.in, DNS:*.google.co.jp, DNS:*.google.co.uk, DNS:*.google.com.ar, DNS:*.google.com.au, DNS:*.google.com.br, DNS:*.google.com.co, DNS:*. google.com.mx, DNS:*.google.com.tr, DNS:*.google.com.vn, DNS:*.google. de, DNS:*.google.es, DNS:*.google.fr, DNS:*.google.hu, DNS:*.google. it, DNS:*.google.nl, DNS:*.google.pl, DNS:*.google.pt, DNS:*.googleapis. cn, DNS:*.googlecommerce.com, DNS:*.googlevideo.com, DNS:*.gstatic.com, DNS:*.gvt1.com, DNS:*.urchin.com, DNS:*.url.google.com, DNS:*.youtubenocookie.com, DNS:*.youtube.com, DNS:*.youtubeeducation.com, DNS:*.ytimg. com, DNS:android.com, DNS:g.co, DNS:goo.gl, DNS:google-analytics.com, DNS:google.com, DNS:googlecommerce.com, DNS:urchin.com, DNS:youtu.be, DNS:youtube.com, DNS:youtubeeducation.com 
+                                  ** {TRUNCATED} **
+```
+
+作为替代，TLS 或者 SSL 的单个版本可以被测试来枚举和版本相关的所支持的密文。下面的例子中，SSLyze 用于枚举受 TLSv1.2 支持的密文，之后使用`grep`来提取出 256 位的密文。
+
+```
+root@KaliLinux:~# sslyze google.com --tlsv1_2 | grep "256 bits"        
+    ECDHE-RSA-AES256-SHA384  256 bits                                                 
+    ECDHE-RSA-AES256-SHA     256 bits                                                 
+    ECDHE-RSA-AES256-GCM-SHA384256 bits                                                 
+    AES256-SHA256            256 bits                                                 
+    AES256-SHA               256 bits                                                 
+    AES256-GCM-SHA384        256 bits
+```
+
+SSLyze 支持的一个非常拥有的特性是 Zlib 压缩的测试。如果开启了压缩，会直接关系到信息列楼漏洞，被称为`Compression Ratio Info-leak Made Easy`（CRIME）。这个测试可以使用`--comprision`参数来执行：
+
+```
+root@KaliLinux:~# sslyze google.com --compression
+ 
+ CHECKING HOST(S) AVAILABILITY
+ ----------------------------
+   
+   google.com:443                      => 173.194.43.40:443
+ 
+ SCAN RESULTS FOR GOOGLE.COM:443 - 173.194.43.40:443 --------------------------------------------------
+  
+  * Compression :        Compression Support:      Disabled 
+                                             ** {TRUNCATED} **
+```
+
+### 工作原理
+
+SSL/TLS 会话通常通过客户端和服务端之间的协商来建立。这些协商会考虑到每一端配置的密文首选项，并且尝试判断双方都支持的最安全的方案。SSLyze 的原理是遍历已知密文和密钥长度的列表，并尝试使用每个配置来和远程服务器协商会话。这允许 SSLyze 枚举受支持的密文和密钥。
