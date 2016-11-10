@@ -1,5 +1,11 @@
 # 第七章 Web 应用扫描
 
+> 作者：Justin Hutchens
+
+> 译者：[飞龙](https://github.com/)
+
+> 协议：[CC BY-NC-SA 4.0](http://creativecommons.org/licenses/by-nc-sa/4.0/)
+
 ## 7.1 使用 Nikto 扫描 Web 应用
 
 Nikto 是 Kali 中的命令行工具，用于评估 Web 应用的已知安全问题。Nikto 爬取目标站点并生成大量预先准备的请求，尝试识别应用中存在的危险脚本和文件。这个秘籍中，我们会讨论如何针对 Web 应用执行 Nikto，以及如何解释结果。
