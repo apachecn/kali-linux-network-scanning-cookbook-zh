@@ -533,7 +533,7 @@ BurpSuite Repeater 仅仅通过向 Web 提供文本界面来工作。Repeater �
 
 ![](img/7-12-2.jpg)
 
-如果 BurpSuite 不能判断编码类型，可以以多种不同便秘吗类型来手动解码，包括 URL、HTML、Base64、ASCII Hex，以及其它。解码器也能够使用`Encode as...`功能来编码输入的字符串。
+如果 BurpSuite 不能判断编码类型，可以以多种不同编码类型来手动解码，包括 URL、HTML、Base64、ASCII Hex，以及其它。解码器也能够使用`Encode as...`功能来编码输入的字符串。
 
 ### 工作原理
 
