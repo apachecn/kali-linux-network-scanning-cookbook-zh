@@ -50,7 +50,7 @@ TCP SYN 封包从想要建立连接的设备发送，并带有想要连接的设
 
 如果目标端口关闭，发往僵尸系统的 RST 封包是之前伪造的 SYN 封包的响应。由于 RST 封包没有手造恢复，僵尸系统的 IPID 值不会增加。因此，返回给扫描系统的最后的 RST 封包的 IPID 值只会增加 1。这个过程可以对每个想要扫描的端口执行，它可以用于映射远程系统的开放端口，而不需要留下扫描系统执行了扫描的痕迹。
 
-## 3.3 使用 Scapy 扫描 UDP
+## 3.3 Scapy UDP 扫描 
 
 Scapy 可以用于向网络构造和注入自定义封包。在这个秘籍中，Scapy 会用于扫描活动的 UDP 服务。这可以通过发送空的 UDP 封包给目标端口，之后识别没有回复 ICMP 不可达响应的端口来实现。
 
@@ -273,3 +273,151 @@ root@KaliLinux:~ # ./udp_scan.py 172.16.36.135 1 100
 ### 工作原理
 
 这个秘籍中，UDP 扫描通过识别不回复 ICMP 端口不可达响应的端口来识别。这个过程非常耗费时间，因为 ICMP 端口不可达响应通常有速率限制。有时候，对于不生成这种响应的系统，这种方式会不可靠，并且 ICMP 通常会被防火墙过滤。替代方式就是使用服务特定的探针来请求正面的响应。这个技巧会在下面的两个秘籍中展示。
+
+## 3.4 Nmap UDP 扫描
+
+Nmap 拥有可以执行远程系统上的 UDP 扫描的选项。Nmap 的 UDP 扫描方式更加复杂，它通过注入服务特定的谭泽请求，来请求正面的响应，用于确认指定服务的存在，来识别活动服务。这个秘籍演示了如何使用 Nmap UDP 扫描来扫描单一端口，多个端口，甚至多个系统。
+
+### 准备
+
+为了使用 Nmap 执行 UDP 扫描，你需要一个运行 UDP 网络服务的远程服务器。这个例子中我们使用 Metasploitable2 实例来执行任务。配置 Metasploitable2 的更多信息请参考第一章中的“安装 Metasploitable2”秘籍。
+
+### 操作步骤
+
+UDP 扫描通常由挑战性，消耗时间，非常麻烦。许多系统会限制 ICMp 主机不可达响应，并且增加扫描大量端口或系统所需的时间总数。幸运的是，Nmap 的开发者拥有更加复杂和高效的工具来识别远程系统上的 UDP 服务。为了使用 Nmap 执行 UDP 扫描，需要使用`-sU`选项，并带上需要扫描的主机 IP 地址。
+
+```
+root@KaliLinux:~# nmap -sU 172.16.36.135
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-17 21:04 EST
+Nmap scan report for 172.16.36.135 
+Host is up (0.0016s latency). 
+Not shown: 993 closed ports 
+PORT     STATE         SERVICE 
+53/udp   open          domain
+68/udp   open|filtered dhcpc 
+69/udp   open|filtered tftp 
+111/udp  open          rpcbind 
+137/udp  open          netbios-ns 
+138/udp  open|filtered netbios-dgm 
+2049/udp open          nfs 
+MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Nmap done: 1 IP address (1 host up) scanned in 1043.91 seconds
+```
+
+虽然 Nmap 使用针对多种服务的自定义载荷来请求 UDP 端口的响应。在没有使用其它参数来指定目标端口时，它仍旧需要大量时间来扫描默认的 1000 个端口。你可以从扫描元数据中看到，默认的扫描需要将近 20 分钟来完成。作为替代，我们可以缩短所需的扫描时间，通过使用下列名Ingles执行针对性扫描：
+
+```
+root@KaliLinux:~# nmap 172.16.36.135 -sU -p 53
+
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-17 21:05 EST 
+Nmap scan report for 172.16.36.135 
+Host is up (0.0010s latency). 
+PORT   STATE SERVICE 53/udp open  
+domain MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Nmap done: 1 IP address (1 host up) scanned in 13.09 seconds 
+```
+
+如果我们指定了需要扫描的特定端口，执行 UDP 扫描所需的的时间总量可以极大江少。这可以通过执行 UDP 扫描并且使用`-p`选项指定端口来实现。在下面的例子中，我们仅仅在`53`端口上执行扫描，来尝试识别 DNS 服务。也可以在多个指定的端口上指定扫描，像这样：
+
+```
+root@KaliLinux:~# nmap 172.16.36.135 -sU -p 1-100
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-17 21:06 EST 
+Nmap scan report for 172.16.36.135 
+Host is up (0.00054s latency). 
+Not shown: 85 open|filtered ports
+PORT   STATE  SERVICE 
+8/udp  closed unknown 
+15/udp closed unknown 
+28/udp closed unknown 
+37/udp closed time 
+45/udp closed mpm 
+49/udp closed tacacs 
+53/udp open   domain 
+56/udp closed xns-auth 
+70/udp closed gopher 
+71/udp closed netrjs-1 
+74/udp closed netrjs-4 
+89/udp closed su-mit-tg 
+90/udp closed dnsix 
+95/udp closed supdup 
+96/udp closed dixie 
+MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Nmap done: 1 IP address (1 host up) scanned in 23.56 seconds 
+```
+
+在这个例子中，扫描在前 100 个端口上执行。这通过使用破折号符号，并指定要扫描的第一个和最后一个端口来完成。Nmap 之后启动多个进程，会同时扫描这两个值之间的多有端口。在一些情况下，UDP 分析需要在多个系统上执行。可以使用破折号符号，并且定义最后一个 IP 段的值的范围，来扫描范围内的主机。
+
+```
+root@KaliLinux:~# nmap 172.16.36.0-255 -sU -p 53
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-17 21:08 EST 
+Nmap scan report for 172.16.36.1 
+Host is up (0.00020s latency). 
+PORT   STATE  SERVICE 
+53/udp closed domain 
+MAC Address: 00:50:56:C0:00:08 (VMware)
+
+Nmap scan report for 172.16.36.2 
+Host is up (0.039s latency).
+PORT   STATE  SERVICE 
+53/udp closed domain 
+MAC Address: 00:50:56:FF:2A:8E (VMware)
+
+Nmap scan report for 172.16.36.132 
+Host is up (0.00065s latency). 
+PORT   STATE  SERVICE 
+53/udp closed domain 
+MAC Address: 00:0C:29:65:FC:D2 (VMware)
+
+Nmap scan report for 172.16.36.135 
+Host is up (0.00028s latency). 
+PORT   STATE SERVICE 
+53/udp open  domain 
+MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Nmap done: 256 IP addresses (6 hosts up) scanned in 42.81 seconds
+```
+这个例子中，扫描对`172.16.36.0/24 `中所有活动主机执行。每个主机都被扫描来识别是否在 53 端口上运行了 DNS 服务。另一个用于扫描多个主机替代选项，就是使用 IP 地址输入列表。为了这样做，使用`-iL`选项，并且应该传入相同目录下的文件名称，或者单独目录下的完成文件路径。前者的例子如下：
+
+```
+root@KaliLinux:~# nmap -iL iplist.txt -sU -p 123
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-17 21:16 EST 
+Nmap scan report for 172.16.36.1 
+Host is up (0.00017s latency). 
+PORT    STATE SERVICE 
+123/udp open  ntp 
+MAC Address: 00:50:56:C0:00:08 (VMware)
+
+Nmap scan report for 172.16.36.2 
+Host is up (0.00025s latency). 
+PORT    STATE         SERVICE 
+123/udp open|filtered ntp
+MAC Address: 00:50:56:FF:2A:8E (VMware)
+
+Nmap scan report for 172.16.36.132 
+Host is up (0.00040s latency). 
+PORT    STATE  SERVICE 
+123/udp closed ntp 
+MAC Address: 00:0C:29:65:FC:D2 (VMware)
+
+Nmap scan report for 172.16.36.135 
+Host is up (0.00031s latency). 
+PORT    STATE  SERVICE 
+123/udp closed ntp 
+MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Nmap done: 4 IP addresses (4 hosts up) scanned in 13.27 seconds
+```
+
+这个例子中，执行了扫描来判断 NTP 服务是否运行在当前执行目录中的`iplist.txt `文件内的任何系统的 123 端口上。
+
+### 工作原理
+
+虽然 Nmap 仍然含有许多和 UDP 扫描相关的相同挑战，它仍旧是个极其高效的解决方案，因为它使用最高效和快速的技巧组合来识别活动服务。
