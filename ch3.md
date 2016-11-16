@@ -556,3 +556,277 @@ msf  auxiliary(udp_sweep) > run
 ### 工作原理
 
 Metasploit 辅助模块中的 UDP 扫描比起 Nmap 更加简单。它仅仅针对有限的服务数量，但是在识别端口上的活动服务方面更加高效，并且比其它可用的 UDP 扫描器更快。
+
+## 3.6 Scapy 隐秘扫描
+
+执行 TCP 端口扫描的一种方式就是执行一部分。目标端口上的 TCP 三次握手用于识别端口是否接受连接。这一类型的扫描指代隐秘扫描， SYN 扫描，或者半开放扫描。这个秘籍演示了如何使用 Scapy 执行 TCP 隐秘扫描。
+
+### 准备
+
+为了使用 Scapy 执行 TCP 隐秘 扫描，你需要一个运行 TCP 网络服务的远程服务器。这个例子中我们使用 Metasploitable2 实例来执行任务。配置 Metasploitable2 的更多信息请参考第一章中的“安装 Metasploitable2”秘籍。
+
+此外，这一节也需要编写脚本的更多信息，请参考第一章中的“使用文本编辑器*VIM 和 Nano）。
+
+### 操作步骤
+
+为了展示如何执行 SYN 扫描，我们需要使用 Scapy 构造 TCP SYN 请求，并识别和开放端口、关闭端口以及无响应系统有关的响应。为了向给定端口发送 TCP SYN 请求，我们首先需要构建请求的各个层面。我们需要构建的第一层就是 IP 层：
+
+```
+root@KaliLinux:~# scapy 
+Welcome to Scapy (2.2.0) 
+>>> i = IP() 
+>>> i.display()
+###[ IP ]###  
+    version= 4  
+    ihl= None  
+    tos= 0x0  
+    len= None  
+    id= 1  
+    flags=   
+    frag= 0  
+    ttl= 64  
+    proto= ip  
+    chksum= None  
+    src= 127.0.0.1  
+    dst= 127.0.0.1  
+    \options\ 
+>>> i.dst = "172.16.36.135" 
+>>> i.display() 
+###[ IP ]###  
+    version= 4  
+    ihl= None  
+    tos= 0x0  
+    len= None  
+    id= 1  
+    flags=   
+    frag= 0  
+    ttl= 64  
+    proto= ip  
+    chksum= None  
+    src= 172.16.36.180  
+    dst= 172.16.36.135  
+    \options\
+```
+
+为了构建请求的 IP 层，我们需要将`IP`对象赋给变量`i`。通过调用`display`函数，我们可以确定对象的属性配置。通常，发送和接受地址都设为回送地址，`127.0.0.1`。这些值可以通过修改目标地址来修改，也就是设置`i.dst`为想要扫描的地址的字符串值。通过再次调用`dislay`函数，我们看到不仅仅更新的目标地址，也自动更新了和默认接口相关的源 IP 地址。现在我们构建了请求的 IP 层，我们可以构建 TCP 层了。
+
+```
+>>> t = TCP() 
+>>> t.display() 
+###[ TCP ]###  
+    sport= ftp_data  
+    dport= http  
+    seq= 0  
+    ack= 0  
+    dataofs= None  
+    reserved= 0  
+    flags= S  
+    window= 8192  
+    chksum= None  
+    urgptr= 0  
+    options= {}
+```
+
+为了构建请求的 TCP 层，我们使用和 IP 层相同的技巧。在这个立即中，`TCP`对象赋给了`t`变量。像之前提到的那样，默认的配置可以通过调用`display`函数来确定。这里我们可以看到目标端口的默认值为 HTTP 端口 80。对于我们的首次扫描，我们将 TCP 设置保留默认。现在我们创建了 TCP 和 IP 层，我们需要将它们叠放来构造请求。
+
+```
+>>> request = (i/t) 
+>>> request.display() 
+###[ IP ]###  
+    version= 4  
+    ihl= None  
+    tos= 0x0  
+    len= None  
+    id= 1
+    flags=   
+    frag= 0  
+    ttl= 64  
+    proto= tcp  
+    chksum= None  
+    src= 172.16.36.180  
+    dst= 172.16.36.135  
+    \options\ 
+###[ TCP ]###     
+    sport= ftp_data     
+    dport= http     
+    seq= 0     
+    ack= 0     
+    dataofs= None     
+    reserved= 0     
+    flags= S     
+    window= 8192     
+    chksum= None     
+    urgptr= 0     
+    options= {}
+```
+
+我们可以通过以斜杠分离变量来叠放 IP 和 TCP 层。这些层面之后赋给了新的变量，它代表整个请求。我们之后可以调用`dispaly`函数来查看请求的配置。一旦构建了请求，可以将其传递给`sr1`函数来分析响应：
+
+```
+>>> response = sr1(request) 
+...Begin emission: 
+........Finished to send 1 packets. 
+....* 
+Received 16 packets, got 1 answers, remaining 0 packets 
+>>> response.display() 
+###[ IP ]###  
+    version= 4L  
+    ihl= 5L  
+    tos= 0x0  
+    len= 44
+    id= 0  
+    flags= DF  
+    frag= 0L  
+    ttl= 64  
+    proto= tcp  
+    chksum= 0x9970  
+    src= 172.16.36.135  
+    dst= 172.16.36.180  
+    \options\ 
+###[ TCP ]###     
+    sport= http     
+    dport= ftp_data     
+    seq= 2848210323L     
+    ack= 1     
+    dataofs= 6L     
+    reserved= 0L     
+    flags= SA     
+    window= 5840     
+    chksum= 0xf82d     
+    urgptr= 0     
+    options= [('MSS', 1460)] 
+###[ Padding ]###        
+    load= '\x00\x00'
+```
+
+相同的请求可以不通过构建和堆叠每一层来执行。反之，我们使用单独的一条命令，通过直接调用函数并传递合适的参数：
+
+```
+>>> sr1(IP(dst="172.16.36.135")/TCP(dport=80)) 
+.Begin emission: .............Finished to send 1 packets. 
+....* 
+Received 19 packets, got 1 answers, remaining 0 packets 
+<IP  version=4L ihl=5L tos=0x0 len=44 id=0 flags=DF frag=0L ttl=64 proto=tcp chksum=0x9970 src=172.16.36.135 dst=172.16.36.180 options=[] |<TCP  sport=http dport=ftp_data seq=542529227 ack=1 dataofs=6L reserved=0L flags=SA window=5840 chksum=0x6864 urgptr=0 options=[('MSS', 1460)] |<Padding  load='\x00\x00' |>>>
+```
+
+要注意当 SYN 封包发往目标 Web 服务器的 TCP 端口 80，并且该端口上运行了 HTTP 服务时，响应中会带有 TCP 标识 SA 的值，这表明 SYN 和 ACK 标识都被激活。这个响应表明特定的目标端口是开放的，并接受连接。如果相同类型的封包发往不接受连接的端口，会收到不同的请求。
+
+```
+>>> response = sr1(IP(dst="172.16.36.135")/TCP(dport=4444)) 
+..Begin emission: 
+.Finished to send 1 packets. 
+...* Received 7 packets, got 1 answers, remaining 0 packets 
+>>> response.display() 
+###[ IP ]###  
+    version= 4L  
+    ihl= 5L  
+    tos= 0x0  
+    len= 40  
+    id= 0  
+    flags= DF  
+    frag= 0L 
+    ttl= 64  
+    proto= tcp 
+    chksum= 0x9974 
+    src= 172.16.36.135 
+    dst= 172.16.36.180 
+    \options\ 
+###[ TCP ]###  
+    sport= 4444    
+    dport= ftp_data 
+    seq= 0   
+    ack= 1   
+    dataofs= 5L  
+    reserved= 0L  
+    flags= RA  
+    window= 0    
+    chksum= 0xfd03   
+    urgptr= 0
+    options= {} 
+###[ Padding ]###   
+    load= '\x00\x00\x00\x00\x00\x00'
+```
+
+当 SYN 请求发送给关闭的端口时，返回的响应中带有 TCP 标识 RA，这表明 RST 和 ACK 标识为都被激活。ACK 为仅仅用于承认请求被接受，RST 为用于断开连接，因为端口不接受连接。作为替代，如果 SYN 封包发往崩溃的系统，或者防火墙过滤了这个请求，就可能接受不到任何信息。由于这个原因，在`sr1 `函数在脚本中使用时，应该始终使用`timeout`选项，来确保脚本不会在无响应的主机上挂起。
+
+```
+>>> response = sr1(IP(dst="172.16.36.136")/TCP(dport=4444),timeout=1,verb ose=1) 
+Begin emission: 
+Finished to send 1 packets
+
+Received 15 packets, got 0 answers, remaining 1 packets 
+```
+
+如果函数对无响应的主机使用时，`timeout`值没有指定，函数会无限继续下去。这个演示中，`timout`值为 1秒，用于使这个函数更加完备，响应的值可以用于判断是否收到了响应：
+
+```
+root@KaliLinux:~# 
+python Python 2.7.3 (default, Jan  2 2013, 16:53:07) 
+[GCC 4.7.2] on linux2 
+Type "help", "copyright", "credits" or "license" for more information. 
+>>> from scapy.all import * 
+>>> response = sr1(IP(dst="172.16.36.136")/TCP(dport=4444),timeout=1,verb ose=1) 
+Begin emission: 
+WARNING: Mac address to reach destination not found. Using broadcast. Finished to send 1 packets.
+
+Received 15 packets, got 0 answers, remaining 1 packets 
+>>> if response == None: 
+...     print "No Response!!!" 
+... 
+No Response!!!
+```
+
+Python 的使用使其更易于测试变量来识别`sr1`函数是否对其复制。这可以用作初步检验，来判断是否接收到了任何响应。对于接收到的响应，可以执行一系列后续检查来判断响应表明端口开放还是关闭。这些东西可以轻易使用 Python 脚本来完成，像这样：
+
+```py
+#!/usr/bin/python
+
+import logging 
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR) 
+from scapy.all import * 
+import sys
+
+if len(sys.argv) != 4:   
+    print "Usage - ./syn_scan.py [Target-IP] [First Port] [Last Port]"   
+    print "Example - ./syn_scan.py 10.0.0.5 1 100"   
+    print "Example will TCP SYN scan ports 1 through 100 on 10.0.0.5"   
+    sys.exit()
+
+ip = sys.argv[1] 
+start = int(sys.argv[2]) 
+end = int(sys.argv[3])
+
+for port in range(start,end):   
+    ans = sr1(IP(dst=ip)/TCP(dport=port),timeout=1,verbose=0)   
+    if ans == None:      
+        pass   
+    else:      
+        if int(ans[TCP].flags) == 18:    
+            print port  
+        else:       
+            pass 
+```
+
+在这个 Python 脚本中，用于被提示来输入 IP 地址，脚本之后会对定义好的端口序列执行 SYN 扫描。脚本之后会得到每个连接的响应，并尝试判断响应的 SYN 和 ACK 标识是否激活。如果响应中出现并仅仅出现了这些标识，那么会输出相应的端口号码。
+
+```
+root@KaliLinux:~# chmod 777 syn_scan.py 
+root@KaliLinux:~# ./syn_scan.py 
+Usage - ./syn_scan.py [Target-IP] [First Port] [Last Port] 
+Example - ./syn_scan.py 10.0.0.5 1 100 
+Example will TCP SYN scan ports 1 through 100 on 10.0.0.5 
+root@KaliLinux:~# ./syn_scan.py 172.16.36.135 1 100
+
+21 
+22 
+23 
+25 
+53 
+80 
+```
+
+运行这个脚本之后，输出会显示所提供的 IP 地址的系统上，前 100 个端口中的开放端口。
+
+### 工作原理
+
+这一类型的扫描由发送初始 SYN 封包给远程系统的目标 TCP 端口，并且通过返回的响应类型来判断端口状态来完成。如果远程系统返回了 SYN+ACK 响应，那么它正在准备建立连接，我们可以假设这个端口开放。如果服务返回了 RST 封包，这就表明端口关闭并且不接收连接。此外，如果没有返回响应，扫描系统和远程系统之间可能存在防火墙，它丢弃了请求。这也可能表明主机崩溃或者目标 IP 上没有关联任何系统。
