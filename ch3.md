@@ -421,3 +421,138 @@ Nmap done: 4 IP addresses (4 hosts up) scanned in 13.27 seconds
 ### 工作原理
 
 虽然 Nmap 仍然含有许多和 UDP 扫描相关的相同挑战，它仍旧是个极其高效的解决方案，因为它使用最高效和快速的技巧组合来识别活动服务。
+
+## 3.5 Metasploit UDP 扫描
+
+Metasploit 拥有一个辅助模块，可以用于扫描特定的常用 UDP 端口。这个秘籍展示了如何使用这个辅助模块来扫描运行 UDP 服务的单个系统或多个系统。
+
+### 准备
+
+为了使用 Metasploit 执行 UDP 扫描，你需要一个运行 UDP 网络服务的远程服务器。这个例子中我们使用 Metasploitable2 实例来执行任务。配置 Metasploitable2 的更多信息请参考第一章中的“安装 Metasploitable2”秘籍。
+
+### 操作步骤
+
+在定义所运行的模块之前，需要打开 Metasploit。为了在 Kali 中打开它，我们在终端会话中执行`msfconsole`命令。
+
+```
+root@KaliLinux:~# msfconsole 
+# cowsay++
+ ____________
+ < metasploit >
+ -----------
+        \   ,__,       
+         \  (oo)____           
+            (__)    )\           
+               ||--|| *
+
+Large pentest? List, sort, group, tag and search your hosts and services in Metasploit Pro -- type 'go_pro' to launch it now.
+       
+       =[ metasploit v4.6.0-dev [core:4.6 api:1.0] 
++ -- --=[ 1053 exploits - 590 auxiliary - 174 post 
++ -- --=[ 275 payloads - 28 encoders - 8 nops
+
+msf > use auxiliary/scanner/discovery/udp_sweep 
+msf  auxiliary(udp_sweep) > show options
+
+Module options (auxiliary/scanner/discovery/udp_sweep):
+   
+    Name       Current Setting  Required  Description   
+    ----       ---------------  --------  ----------   
+    BATCHSIZE  256              yes       The number of hosts to probe in each set   
+    CHOST                       no        The local client address   
+    RHOSTS                      yes       The target address range or CIDR identifier   
+    THREADS    1                yes       The number of concurrent threads
+```
+
+为了在 Metasploit 中运行 UDP 扫描模块，我们以模块的相对路径调用`use`命令。一旦选择了模块，可以使用`show options`命令来确认或更改扫描配置。这个命令会展示四个列的表格，包括`name`、`current settings`、`required`和`description`。`name`列标出了每个可配置变量的名称。`current settings`列列出了任何给定变量的现有配置。`required`列标出对于任何给定变量，值是否是必须的。`description`列描述了每个变量的功能。任何给定变量的值可以使用`set`命令，并且将新的值作为参数来修改。
+
+```
+msf  auxiliary(udp_sweep) > set RHOSTS 172.16.36.135 
+RHOSTS => 172.16.36.135 
+msf  auxiliary(udp_sweep) > set THREADS 20 
+THREADS => 20 
+msf  auxiliary(udp_sweep) > show options
+
+Module options (auxiliary/scanner/discovery/udp_sweep):
+
+    Name       Current Setting  Required  Description   
+    ----       ---------------  --------  ----------   
+    BATCHSIZE  256              yes       The number of hosts to probe in each set   
+    CHOST                       no        The local client address   
+    RHOSTS     172.16.36.135    yes       The target address range or CIDR identifier   
+    THREADS    20               yes       The number of concurrent threads
+```
+
+在上面的例子中，`RHOSTS`值修改为我们打算扫描的远程系统的 IP 地址。地外，线程数量修改为 20。`THREADS`的值定位了在后台执行的当前任务数量。确定线程数量涉及到寻找一个平衡，既能提升任务速度，又不会过度消耗系统资源。对于多数系统，20 个线程可以足够快，并且相当合理。修改了必要的变量之后，可以再次使用`show options`命令来验证。一旦所需配置验证完毕，就可以执行扫描了。
+
+```
+msf  auxiliary(udp_sweep) > run
+
+[*] Sending 12 probes to 172.16.36.135->172.16.36.135 (1 hosts) 
+[*] Discovered Portmap on 172.16.36.135:111 (100000 v2 TCP(111), 100000 v2 UDP(111), 100024 v1 UDP(36429), 100024 v1 TCP(56375), 100003 v2 UDP(2049), 100003 v3 UDP(2049), 100003 v4 UDP(2049), 100021 v1 UDP(34241), 100021 v3 UDP(34241), 100021 v4 UDP(34241), 100003 v2 TCP(2049), 100003 v3 TCP(2049), 100003 v4 TCP(2049), 100021 v1 TCP(50333), 100021 v3 TCP(50333), 100021 v4 TCP(50333), 100005 v1 UDP(47083), 100005 v1 TCP(57385), 100005 v2 UDP(47083), 100005 v2 TCP(57385), 100005 v3 UDP(47083), 100005 v3 TCP(57385)) 
+[*] Discovered NetBIOS on 172.16.36.135:137 (METASPLOITABLE:<00>:U :METASPLOITABLE:<03>:U :METASPLOITABLE:<20>:U :__MSBROWSE__:<01>:G :WORKGROUP:<00>:G :WORKGROUP:<1d>:U :WORKGROUP:<1e>:G :00:00:00:00:00:00) 
+[*] Discovered DNS on 172.16.36.135:53 (BIND 9.4.2) 
+[*] Scanned 1 of 1 hosts (100% complete) 
+[*] Auxiliary module execution completed
+```
+
+Metasploit 中所使用的`run`命令用于执行所选的辅助模块。在上面的例子中，`run`命令对指定的 IP 地址执行 UDP 扫描。`udp_sweep`模块也可以使用破折号符号，对地址序列执行扫描。
+
+```
+msf  auxiliary(udp_sweep) > set RHOSTS 172.16.36.1-10 
+RHOSTS => 172.16.36.1-10 
+msf  auxiliary(udp_sweep) > show options
+
+Module options (auxiliary/scanner/discovery/udp_sweep):
+
+    Name       Current Setting  Required  Description   
+    ----       ---------------  --------  ----------   
+    BATCHSIZE  256              yes       The number of hosts to probe in each set   
+    CHOST                       no        The local client address   
+    RHOSTS     172.16.36.1-10   yes       The target address range or CIDR identifier   
+    THREADS    20               yes       The number of concurrent threads
+
+msf  auxiliary(udp_sweep) > run
+
+[*] Sending 12 probes to 172.16.36.1->172.16.36.10 (10 hosts) 
+[*] Discovered NetBIOS on 172.16.36.1:137 (MACBOOKPRO-3E0F:<00>:U :00:50:56:c0:00:08) 
+[*] Discovered NTP on 172.16.36.1:123 (NTP v4 (unsynchronized)) 
+[*] Discovered DNS on 172.16.36.2:53 (BIND 9.3.6-P1-RedHat-9.3.6-20. P1.el5_8.6)
+[*] Scanned 10 of 10 hosts (100% complete) 
+[*] Auxiliary module execution completed
+```
+
+在上面的例子中，UDP 扫描对 10 个主机地址执行，它们由`RHOSTS`变量指定。与之相似，`RHOSTS`可以使用`CIDR`记法来定义网络范围，像这样：
+
+```
+msf  auxiliary(udp_sweep) > set RHOSTS 172.16.36.0/24 
+RHOSTS => 172.16.36.0/24 
+msf  auxiliary(udp_sweep) > show options
+
+Module options (auxiliary/scanner/discovery/udp_sweep):
+
+   Name       Current Setting  Required  Description   
+   ----       ---------------  --------  ----------   
+   BATCHSIZE  256              yes       The number of hosts to probe in each set   
+   CHOST                       no        The local client address   
+   RHOSTS     172.16.36.0/24   yes       The target address range or CIDR identifier   
+   THREADS    20               yes       The number of concurrent threads
+
+msf  auxiliary(udp_sweep) > run
+
+[*] Sending 12 probes to 172.16.36.0->172.16.36.255 (256 hosts) 
+[*] Discovered Portmap on 172.16.36.135:111 (100000 v2 TCP(111), 100000 v2 UDP(111), 100024 v1 UDP(36429), 100024 v1 TCP(56375), 100003 v2 UDP(2049), 100003 v3 UDP(2049), 100003 v4 UDP(2049), 100021 v1 UDP(34241), 100021 v3 UDP(34241), 100021 v4 UDP(34241), 100003 v2 TCP(2049), 100003 v3 TCP(2049), 100003 v4 TCP(2049), 100021 v1 TCP(50333), 100021 v3 TCP(50333), 100021 v4 TCP(50333), 100005 v1 UDP(47083), 100005 v1 TCP(57385), 100005 v2 UDP(47083), 100005 v2 TCP(57385), 100005 v3 UDP(47083), 100005 v3 TCP(57385)) 
+[*] Discovered NetBIOS on 172.16.36.135:137 (METASPLOITABLE:<00>:U :METASPLOITABLE:<03>:U :METASPLOITABLE:<20>:U :__MSBROWSE__:<01>:G :WORKGROUP:<00>:G :WORKGROUP:<1d>:U :WORKGROUP:<1e>:G :00:00:00:00:00:00) 
+[*] Discovered NTP on 172.16.36.1:123 (NTP v4 (unsynchronized)) 
+[*] Discovered NetBIOS on 172.16.36.1:137 (MACBOOKPRO-3E0F:<00>:U :00:50:56:c0:00:08) [*] Discovered DNS on 172.16.36.0:53 (BIND 9.3.6-P1-RedHat-9.3.6-20. P1.el5_8.6)
+
+[*] Discovered DNS on 172.16.36.2:53 (BIND 9.3.6-P1-RedHat-9.3.6-20. P1.el5_8.6) 
+[*] Discovered DNS on 172.16.36.135:53 (BIND 9.4.2) 
+[*] Discovered DNS on 172.16.36.255:53 (BIND 9.3.6-P1-RedHat-9.3.6-20. P1.el5_8.6) 
+[*] Scanned 256 of 256 hosts (100% complete) 
+[*] Auxiliary module execution completed
+```
+
+### 工作原理
+
+Metasploit 辅助模块中的 UDP 扫描比起 Nmap 更加简单。它仅仅针对有限的服务数量，但是在识别端口上的活动服务方面更加高效，并且比其它可用的 UDP 扫描器更快。
