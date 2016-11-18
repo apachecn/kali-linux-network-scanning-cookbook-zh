@@ -483,7 +483,7 @@ Module options (auxiliary/scanner/discovery/udp_sweep):
     THREADS    20               yes       The number of concurrent threads
 ```
 
-在上面的例子中，`RHOSTS`值修改为我们打算扫描的远程系统的 IP 地址。地外，线程数量修改为 20。`THREADS`的值定位了在后台执行的当前任务数量。确定线程数量涉及到寻找一个平衡，既能提升任务速度，又不会过度消耗系统资源。对于多数系统，20 个线程可以足够快，并且相当合理。修改了必要的变量之后，可以再次使用`show options`命令来验证。一旦所需配置验证完毕，就可以执行扫描了。
+在上面的例子中，`RHOSTS`值修改为我们打算扫描的远程系统的 IP 地址。地外，线程数量修改为 20。`THREADS`的值定义了在后台执行的当前任务数量。确定线程数量涉及到寻找一个平衡，既能提升任务速度，又不会过度消耗系统资源。对于多数系统，20 个线程可以足够快，并且相当合理。修改了必要的变量之后，可以再次使用`show options`命令来验证。一旦所需配置验证完毕，就可以执行扫描了。
 
 ```
 msf  auxiliary(udp_sweep) > run
@@ -1053,3 +1053,219 @@ Nmap done: 4 IP addresses (4 hosts up) scanned in 13.05 seconds
 ### 工作原理
 
 Nmap SYN 扫描背后的底层机制已经讨论过了。但是，Nmap 拥有多线程功能，是用于执行这类扫描的快速高效的方式。
+
+## 3.8 Metasploit 隐秘扫描
+
+除了其它已经讨论过的工具之外，Metasploit 拥有用于 SYN 扫描的辅助模块。这个秘籍展示了如何使用 Metasploit 来执行 TCP 隐秘扫描。
+
+### 准备
+
+为了使用 Nmap 执行 TCP 隐秘扫描，你需要一个运行 TCP 网络服务的远程服务器。这个例子中我们使用 Metasploitable2 实例来执行任务。配置 Metasploitable2 的更多信息请参考第一章中的“安装 Metasploitable2”秘籍。
+
+### 操作步骤
+
+Metasploit 拥有可以对特定 TCP 端口执行 SYN 扫描的辅助模块。为了在 Kali 中启动 Metasploit，我们在终端中执行`msfconsole`命令。
+
+```
+root@KaliLinux:~# msfconsole 
+IIIIII    dTb.dTb        _.---._
+  II     4'  v  'B   .'"".'/|\`.""'.  
+  II     6.     .P  :  .' / | \ `.  :  
+  II     'T;. .;P'  '.'  /  |  \  `.'  
+  II      'T; ;P'    `. /   |   \ .' 
+IIIIII     'YvP'       `-.__|__.-'
+
+I love shells --egypt
+
+Using notepad to track pentests? Have Metasploit Pro report on hosts, services, sessions and evidence -- type 'go_pro' to launch it now.
+
+       =[ metasploit v4.6.0-dev [core:4.6 api:1.0] 
++ -- --=[ 1053 exploits - 590 auxiliary - 174 post 
++ -- --=[ 275 payloads - 28 encoders - 8 nops
+
+msf > use auxiliary/scanner/portscan/syn 
+msf  auxiliary(syn) > show options
+
+Module options (auxiliary/scanner/portscan/syn):
+   
+    Name       Current Setting  Required  Description   
+    ----       ---------------  --------  ----------   
+    BATCHSIZE  256              yes       The number of hosts to scan per set   
+    INTERFACE                   no        The name of the interface   
+    PORTS      1-10000          yes       Ports to scan (e.g. 2225,80,110-900)   
+    RHOSTS                      yes       The target address range or CIDR identifier   
+    SNAPLEN    65535            yes       The number of bytes to capture   
+    THREADS    1                yes       The number of concurrent threads   
+    TIMEOUT    500              yes       The reply read timeout in milliseconds 
+```
+
+为了在 Metasploit 中执行 SYN 扫描，以辅助模块的相对路径调用`use`命令。一旦模块被选中，可以执行`show options`命令来确认或修改扫描配置。这个命令会展示四列的表格，包括`name`、`current settings`、`required`和`description`。`name`列标出了每个可配置变量的名称。`current settings`列列出了任何给定变量的现有配置。`required`列标出对于任何给定变量，值是否是必须的。`description`列描述了每个变量的功能。任何给定变量的值可以使用`set`命令，并且将新的值作为参数来修改。
+
+```
+msf  auxiliary(syn) > set RHOSTS 172.16.36.135 
+RHOSTS => 172.16.36.135 
+msf  auxiliary(syn) > set THREADS 20 
+THREADS => 20 
+msf  auxiliary(syn) > set PORTS 80 
+PORTS => 80 
+msf  auxiliary(syn) > show options
+
+Module options (auxiliary/scanner/portscan/syn):
+
+   Name       Current Setting  Required  Description   
+   ----       ---------------  --------  ----------   
+   BATCHSIZE  256              yes       The number of hosts to scan per set
+   INTERFACE                   no        The name of the interface   
+   PORTS      80               yes       Ports to scan (e.g. 2225,80,110-900)   
+   RHOSTS     172.16.36.135    yes       The target address range or CIDR identifier   
+   SNAPLEN    65535            yes       The number of bytes to capture   
+   THREADS    20               yes       The number of concurrent threads   
+   TIMEOUT    500              yes       The reply read timeout in milliseconds
+```
+
+在上面的例子中，`RHOSTS`值修改为我们打算扫描的远程系统的 IP 地址。地外，线程数量修改为 20。`THREADS`的值定义了在后台执行的当前任务数量。确定线程数量涉及到寻找一个平衡，既能提升任务速度，又不会过度消耗系统资源。对于多数系统，20 个线程可以足够快，并且相当合理。`PORTS `值设为 TCP 端口 80（HTTP）。修改了必要的变量之后，可以再次使用`show options`命令来验证。一旦所需配置验证完毕，就可以执行扫描了。
+
+```
+msf  auxiliary(syn) > run
+
+[*] TCP OPEN 172.16.36.135:80 [*] Scanned 1 of 1 hosts (100% complete) 
+[*] Auxiliary module execution completed The run command is used in Metasploit to execute the selected auxiliary module. In the example provided, the run command executed a TCP SYN scan against port 80 of the specified IP address. We can also run this TCP SYN scan module against a sequential series  of TCP ports by supplying the first and last values, separated by a dash notation:
+
+msf  auxiliary(syn) > set PORTS 0-100 
+PORTS => 0-100 
+msf  auxiliary(syn) > show options
+
+Module options (auxiliary/scanner/portscan/syn):
+
+   Name       Current Setting  Required  Description   
+   ----       ---------------  --------  ----------   
+   BATCHSIZE  256              yes       The number of hosts to scan per set   
+   INTERFACE                   no        The name of the interface
+   PORTS      0-100            yes       Ports to scan (e.g. 2225,80,110-900)   
+   RHOSTS     172.16.36.135    yes       The target address range or CIDR identifier   
+   SNAPLEN    65535            yes       The number of bytes to capture   
+   THREADS    20               yes       The number of concurrent threads   
+   TIMEOUT    500              yes       The reply read timeout in milliseconds
+   
+msf  auxiliary(syn) > run
+
+[*]  TCP OPEN 172.16.36.135:21 
+[*]  TCP OPEN 172.16.36.135:22 
+[*]  TCP OPEN 172.16.36.135:23 
+[*]  TCP OPEN 172.16.36.135:25 
+[*]  TCP OPEN 172.16.36.135:53 
+[*]  TCP OPEN 172.16.36.135:80 
+[*] Scanned 1 of 1 hosts (100% complete) 
+[*] Auxiliary module execution completed 
+```
+
+上面的例子中，所指定的远程主机的钱 100 个 TCP 端口上执行了 TCP SYN 扫描。虽然这个扫描识别了目标系统的多个设备，我们不能确认所有设备都识别出来，除非所有可能的端口地址都扫描到。定义来源和目标端口地址的TCP 头部部分是 16 位长。并且，每一位可以为 1 或者 0。因此，共有`2 ** 16`或 65536 个可能的 TCP 端口地址。对于要扫描的整个地址空间，需要提供 0 到 65535 的 端口范围，像这样：
+
+```
+msf  auxiliary(syn) > set PORTS 0-65535 
+PORTS => 0-65535 
+msf  auxiliary(syn) > show options
+
+Module options (auxiliary/scanner/portscan/syn):
+
+   Name       Current Setting  Required  Description   
+   ----       ---------------  --------  ----------   
+   BATCHSIZE  256              yes       The number of hosts to scan per set   
+   INTERFACE                   no        The name of the interface
+   PORTS      0-65535          yes       Ports to scan (e.g. 2225,80,110-900)   
+   RHOSTS     172.16.36.135    yes       The target address range or CIDR identifier   
+   SNAPLEN    65535            yes       The number of bytes to capture   
+   THREADS    20               yes       The number of concurrent threads   
+   TIMEOUT    500              yes       The reply read timeout in milliseconds 
+   
+msf  auxiliary(syn) > run
+
+[*]  TCP OPEN 172.16.36.135:21 
+[*]  TCP OPEN 172.16.36.135:22 
+[*]  TCP OPEN 172.16.36.135:23 
+[*]  TCP OPEN 172.16.36.135:25 
+[*]  TCP OPEN 172.16.36.135:53 
+[*]  TCP OPEN 172.16.36.135:80 
+[*]  TCP OPEN 172.16.36.135:111 
+[*]  TCP OPEN 172.16.36.135:139 
+[*]  TCP OPEN 172.16.36.135:445 
+[*]  TCP OPEN 172.16.36.135:512 
+[*]  TCP OPEN 172.16.36.135:513 
+[*]  TCP OPEN 172.16.36.135:514 
+[*]  TCP OPEN 172.16.36.135:1099 
+[*]  TCP OPEN 172.16.36.135:1524 
+[*]  TCP OPEN 172.16.36.135:2049 
+[*]  TCP OPEN 172.16.36.135:2121 
+[*]  TCP OPEN 172.16.36.135:3306 
+[*]  TCP OPEN 172.16.36.135:3632 
+[*]  TCP OPEN 172.16.36.135:5432 
+[*]  TCP OPEN 172.16.36.135:5900 
+[*]  TCP OPEN 172.16.36.135:6000 
+[*]  TCP OPEN 172.16.36.135:6667 
+[*]  TCP OPEN 172.16.36.135:6697 
+[*]  TCP OPEN 172.16.36.135:8009 
+[*]  TCP OPEN 172.16.36.135:8180 
+[*]  TCP OPEN 172.16.36.135:8787 
+[*]  TCP OPEN 172.16.36.135:34789
+[*]  TCP OPEN 172.16.36.135:50333 
+[*]  TCP OPEN 172.16.36.135:56375 
+[*]  TCP OPEN 172.16.36.135:57385 
+[*] Scanned 1 of 1 hosts (100% complete) 
+[*] Auxiliary module execution completed
+```
+
+在这个李忠，远程系统的所有开放端口都由扫描所有可能的 TCP 端口地址来识别。我们也可以修改扫描配置使用破折号记法来扫描地址序列。
+
+```
+msf  auxiliary(syn) > set RHOSTS 172.16.36.0-255 
+RHOSTS => 172.16.36.0-255 
+msf  auxiliary(syn) > show options
+
+Module options (auxiliary/scanner/portscan/syn):
+
+   Name       Current Setting  Required  Description   
+   ----       ---------------  --------  ----------   
+   BATCHSIZE  256              yes       The number of hosts to scan per set   
+   INTERFACE                   no        The name of the interface   
+   PORTS      80               yes       Ports to scan (e.g. 2225,80,110-900)   
+   RHOSTS     172.16.36.0-255  yes       The target address range or CIDR identifier   
+   SNAPLEN    65535            yes       The number of bytes to capture   
+   THREADS    20               yes       The number of concurrent threads   
+   TIMEOUT    500              yes       The reply read timeout in milliseconds
+   
+msf  auxiliary(syn) > run
+
+[*] TCP OPEN 172.16.36.135:80 
+[*] Scanned 256 of 256 hosts (100% complete) 
+[*] Auxiliary module execution completed
+```
+
+这个例子中，TCP SYN 扫描执行在由`RHOST`变量指定的所有主机地址的 80 端口上。与之相似，`RHOSTS`可以使用 CIDR 记法定义网络范围。
+
+```
+msf  auxiliary(syn) > set RHOSTS 172.16.36.0/24 
+RHOSTS => 172.16.36.0/24 
+msf  auxiliary(syn) > show options
+
+Module options (auxiliary/scanner/portscan/syn):
+
+   Name       Current Setting  Required  Description   
+   ----       ---------------  --------  ----------   
+   BATCHSIZE  256              yes       The number of hosts to scan per set   
+   INTERFACE                   no        The name of the interface   
+   PORTS      80               yes       Ports to scan (e.g. 2225,80,110-900)   
+   RHOSTS     172.16.36.0/24   yes       The target address range or CIDR identifier   
+   SNAPLEN    65535            yes       The number of bytes to capture   
+   THREADS    20               yes       The number of concurrent threads   
+   TIMEOUT    500              yes       The reply read timeout in milliseconds
+   
+msf  auxiliary(syn) > run
+
+[*] TCP OPEN 172.16.36.135:80 
+[*] Scanned 256 of 256 hosts (100% complete) 
+[*] Auxiliary module execution completed
+```
+
+### 工作原理
+
+Metasploit SYN 扫描辅助模块背后的底层原理和任何其它 SYN 扫描工具一样。对于每个被扫描的端口，会发送 SYN 封包。SYN+ACK 封包会用于识别活动服务。使用 MEtasploit 可能更加有吸引力，因为它拥有交互控制台，也因为它是个已经被多数渗透测试者熟知的工具。
