@@ -2098,3 +2098,95 @@ msf  auxiliary(tcp) > run
 ### 工作原理
 
 Metasploit TCP 连接扫描辅助模块背后的底层原理和任何其它 TCP 连扫描工具一样。使用 MEtasploit 来执行这种扫描的有点事，它可以降低所需工具的总数。
+
+## 3.13 Dmitry 连接扫描
+
+另一个可以对远程系统执行 TCP 连接扫描的 替代工具就是 Dmitry。不像 Nmap 和 Metasploit，Dmitry 是个非常简单的工具，我们可以使用它来执行简单快速的扫描，而不需要任何配置。这个秘籍展示了如何使用 Dmitry 来自执行 TCP 连接扫描。
+
+### 准备
+
+为了使用 Dmitry 执行 TCP 连接扫描，你需要一个运行 TCP 网络服务的远程服务器。这个例子中我们使用 Metasploitable2 实例来执行任务。配置 Metasploitable2 的更多信息请参考第一章中的“安装 Metasploitable2”秘籍。
+
+### 操作步骤
+
+Dmitry 是个多用途的工具，可以用于执行目标系统上的 TCP 扫描。它的功能十分有限，但是它是个简单的工具，快速而高效。为了查看 Dmitry 的可用选项，我们在终端中不带任何参数来启动这个程序：
+
+```
+root@KaliLinux:~# dmitry 
+Deepmagic Information Gathering Tool 
+"There be some deep magic going on"
+
+Usage: dmitry [-winsepfb] [-t 0-9] [-o %host.txt] host
+  -o   Save output to %host.txt or to file specified by -o file  
+  -i   Perform a whois lookup on the IP address of a host  
+  -w   Perform a whois lookup on the domain name of a host 
+  -n   Retrieve Netcraft.com information on a host 
+  -s   Perform a search for possible subdomains
+  -e   Perform a search for possible email addresses 
+  -p   Perform a TCP port scan on a host 
+* -f   Perform a TCP port scan on a host showing output reporting filtered ports 
+* -b   Read in the banner received from the scanned port 
+* -t 0-9 Set the TTL in seconds when scanning a TCP port ( Default 2 ) 
+*Requires the -p flagged to be passed 
+```
+
+就像输出中所说的那样，`-p`选项用于执行 TCP 端口扫描。为了实现它，我们以被扫描系统的 IP 地址来使用这个选项。Dmitry 拥有 150 个常用的预配置端口，它会扫描这些。在这些端口中，它会展示任何发现的开放端口。考虑下面的例子：
+
+root@KaliLinux:~# dmitry -p 172.16.36.135 
+Deepmagic Information Gathering
+Tool "There be some deep magic going on"
+
+ERROR: Unable to locate Host Name for 172.16.36.135 
+Continuing with limited modules 
+HostIP:172.16.36.135 
+HostName:
+
+Gathered TCP Port information for 172.16.36.135 
+--------------------------------
+
+ Port    State
+ 
+21/tcp    open 
+22/tcp    open 
+23/tcp    open 
+25/tcp    open 
+53/tcp    open 
+80/tcp    open 
+111/tcp    open 
+139/tcp    open
+
+Portscan Finished: Scanned 150 ports, 141 ports were in state closed 
+```
+
+Dmitry 中的 TCP 端口扫描并不能自定义。但是它是个简单高效的方法来访问单个主机上的常用服务。我们也可以使用`-o`选项，并通过指定文件名称，将 DMitry 扫描结果输出到文本文件中。
+
+```
+root@KaliLinux:~# dmitry -p 172.16.36.135 -o output 
+root@KaliLinux:~# ls Desktop  output.txt 
+root@KaliLinux:~# cat output.txt 
+ERROR: Unable to locate 
+Host Name for 172.16.36.135 
+Continuing with limited modules 
+HostIP:172.16.36.135 
+HostName:
+
+Gathered TCP Port information for 172.16.36.135 
+--------------------------------
+
+ Port    State 
+21/tcp    open 
+22/tcp    open 
+23/tcp    open 
+25/tcp    open
+53/tcp    open 
+80/tcp    open 
+111/tcp    open 
+139/tcp    open
+
+Portscan Finished: Scanned 150 ports, 141 ports were in state closed
+```
+
+### 工作原理
+
+定义如何执行 TCP 连接扫描的底层机制和之前讨论的其它工具一样。和其他工具相比，Dmitry 的使用性主要源于简洁，并不需要管理多个配置项，像我们使用 Nmap 和 Metasploit 那样。我们可以轻易通过指定响应模式，以及将 IP 地址传递给他来启动 Dmitry。它能够快读扫描常用的 150 个端口，以及其中所有开放端口的值。
+ 
