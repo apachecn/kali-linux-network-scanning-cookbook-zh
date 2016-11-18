@@ -1567,4 +1567,67 @@ response = sr1(IP(dst="172.16.36.135")/TCP(dport=4444,flags='S'))
 reply = sr1(IP(dst="172.16.36.135")/TCP(dport=4444,flags='A',ack=(resp onse[TCP].seq + 1)))
 ```
 
-这个脚本中，SYN 请求发送给了监听端口。
+这个脚本中，SYN 请求发送给了监听端口。收到 SYN+ACK 回复之后，会发送 ACK回复。为了验证连接尝试被系统生成的 RST 封包打断，这个脚本应该在 Wireshark 启动之后执行，来捕获请求蓄力。我们使用 Wireshark 的过滤器来隔离连接尝试序列。所使用的过滤器是` tcp && (ip.src == 172.16.36.135 || ip.dst == 172.16.36.135)`。过滤器仅仅用于展示来自或发往被扫描系统的 TCP 流量。像这样：
+
+![](img/3-10-1.jpg)
+
+既然我们已经精确定位了问题。我们可以建立过滤器，让我们能够去除系统生成的 RST 封包。这个过滤器可以通过修改本地 IP 表来建立：
+
+> 以如下方式修改本地 IP 表会通过阻塞所有发出的 RST 响应，改变和目标系统之间的 TCP/IP 事务的处理方式。确保常见的 iptable 规则在这个秘籍完成之后移除，或者之后使用下列命令刷新 iptable。
+
+> ```
+> iptables --flush
+> ```
+
+```
+root@KaliLinux:~# iptables -A OUTPUT -p tcp --tcp-flags RST RST -d 172.16.36.135 -j DROP 
+root@KaliLinux:~# iptables --list 
+Chain INPUT (policy ACCEPT) 
+target     prot opt source               destination         
+
+Chain FORWARD (policy ACCEPT) 
+target     prot opt source               destination      
+   
+Chain OUTPUT (policy ACCEPT) 
+target     prot opt source               destination         
+DROP       tcp  --  anywhere             172.16.36.135       tcp flags:RST/RST
+```
+
+在这个例子中，本地 IP 表的修改去除了所有发往被扫描主机的目标地址的 TCP RST 封包。`list`选项随后可以用于查看 IP 表的条目，以及验证配置已经做了修改。为了执行另一次连接尝试，我们需要确保 Natcat 仍旧监听目标的 4444 端口，像这样：
+
+```
+admin@ubuntu:~$ nc -lvp 4444 
+listening on [any] 4444 ...
+```
+
+和之前相同的 Python 脚本可以再次使用，同时 WIreshark 会捕获后台的流量。使用之前讨论的显示过滤器，我们可以轻易专注于所需的流量。要注意三次握手的所有步骤现在都可以完成，而不会收到系统生成的 RST 封包的打断，像这样：
+
+![](img/3-10-2.jpg)
+
+此外，如果我们看一看运行在目标系统的 Netcat 服务，我们可以注意到，已经建立了连接。这是用于确认成功建立连接的进一步的证据。这可以在下面的输出中看到：
+
+```
+admin@ubuntu:~$ nc -lvp 4444 
+listening on [any] 4444 ... 172.16.36.132: inverse host lookup failed: No address associated with name 
+connect to [172.16.36.135] from (UNKNOWN) [172.16.36.132] 42409
+```
+
+虽然这个练习对理解和解决 TCP 连接的问题十分有帮助，恢复 IP 表的条目也十分重要。RST 封包 是 TCP 通信的重要组成部分，去除这些响应会影响正常的通信功能。洗唛按的命令可以用于刷新我们的 iptable 规则，并验证刷新成功：
+
+```
+root@KaliLinux:~# iptables --flush 
+root@KaliLinux:~# iptables --list 
+Chain INPUT (policy ACCEPT) 
+target     prot opt source               destination   
+
+Chain FORWARD (policy ACCEPT) 
+target     prot opt source               destination    
+     
+Chain OUTPUT (policy ACCEPT) 
+target     prot opt source               destination 
+```
+就像例子中展示的那样，`flush`选项应该用于清楚 IP 表的条目。我们可以多次使用`list`选项来验证 IP 表的条目已经移除了。
+
+### 工作原理
+
+执行 TCP 连接扫描的同居通过执行完整的三次握手，和远程系统的所有被扫描端口建立连接。端口的状态取决于连接是否成功建立。如果连接建立，端口被认为是开放的，如果连接不能成功建立，端口被认为是关闭的。
