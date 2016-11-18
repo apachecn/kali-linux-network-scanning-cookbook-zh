@@ -1374,3 +1374,197 @@ Not responding ports:
 ### 工作原理
 
 hping3 不用于一些已经提到的其它工具，因为它并没有 SYN 扫描模式。但是反之，它允许你指定 TCP 封包发送时的激活的 TCP 标识。在秘籍中的例子中，`-S`选项让 hping3 使用 TCP 封包的 SYN 标识。
+
+## 3.10 Scapy 连接扫描
+
+在多数扫描工具当中，TCP 连接扫描比 SYN 扫描更加容易。这是因为 TCP 连接扫描并不需要为了生成和注入 SYN 扫描中使用的原始封包而提升权限。Scapy 是它的一大例外。Scapy 实际上非常难以执行完全的 TCP 三次握手，也不实用。但是，出于更好理解这个过程的目的，我们来看看如何使用 Scapy 执行连接扫描。
+
+### 准备
+
+为了使用 Scapy 执行全连接扫描，你需要一个运行 UDP 网络服务的远程服务器。这个例子中我们使用 Metasploitable2 实例来执行任务。配置 Metasploitable2 的更多信息请参考第一章中的“安装 Metasploitable2”秘籍。
+
+此外，这一节也需要编写脚本的更多信息，请参考第一章中的“使用文本编辑器*VIM 和 Nano）。
+
+### 操作步骤
+
+Scapy 中很难执行全连接扫描，因为系统内核不知道你在 Scapy 中发送的请求，并且尝试阻止你和远程系统建立完整的三次握手。你可以在 Wireshark 或 tcpdump 中，通过发送 SYN 请求并嗅探相关流量来看到这个过程。当你接收到来自远程系统的 SYN+ACK 响应时，Linux 内核会拦截它，并将其看做来源不明的响应，因为它不知道你在 Scapy 中 发送的请求。并且系统会自动使用 TCP RST 封包来回复，因此会断开握手过程。考虑下面的例子：
+
+```py
+#!/usr/bin/python
+
+import logging 
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR) 
+from scapy.all import *
+
+response = sr1(IP(dst="172.16.36.135")/TCP(dport=80,flags='S')) 
+reply = sr1(IP(dst="172.16.36.135")/TCP(dport=80,flags='A',ack=(respon se[TCP].seq + 1)))
+```
+
+这个 Python 脚本的例子可以用做 POC 来演系统破坏三次握手的问题。这个脚本假设你将带有开放端口活动系统作为目标。因此，假设 SYN+ACK 回复会作为初始 SYN 请求的响应而返回。即使发送了最后的 ACK 回复，完成了握手，RST 封包也会阻止连接建立。我们可以通过观察封包发送和接受来进一步演示。
+
+```
+#!/usr/bin/python
+
+import logging 
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR) 
+from scapy.all import *
+
+SYN = IP(dst="172.16.36.135")/TCP(dport=80,flags='S')
+
+print "-- SENT --" 
+SYN.display()
+
+print "\n\n-- RECEIVED --" 
+response = sr1(SYN,timeout=1,verbose=0) 
+response.display()
+
+if int(response[TCP].flags) == 18:   
+    print "\n\n-- SENT --"   
+    ACK = IP(dst="172.16.36.135")/TCP(dport=80,flags='A',ack=(response[    TCP].seq + 1))   
+    response2 = sr1(ACK,timeout=1,verbose=0)   
+    ACK.display()   
+    print "\n\n-- RECEIVED --"   
+    response2.display() 
+else:   
+    print "SYN-ACK not returned"
+```
+
+在这个 Python 脚本中，每个发送的封包都在传输之前展示，并且每个收到的封包都在到达之后展示。在检验每个封包所激活的 TCP 标识的过程中，我们可以看到，三次握手失败了。考虑由脚本生成的下列输出：
+
+```
+root@KaliLinux:~# ./tcp_connect.py 
+-- SENT -
+###[ IP ]###
+    version   = 4  
+    ihl       = None  
+    tos       = 0x0  
+    len       = None  
+    id        = 1  
+    flags     =   
+    frag      = 0  
+    ttl       = 64  
+    proto     = tcp  
+    chksum    = None  
+    src       = 172.16.36.180  
+    dst       = 172.16.36.135  
+    \options   \ 
+###[ TCP ]###     
+    sport     = ftp_data     
+    dport     = http     
+    seq       = 0     
+    ack       = 0     
+    dataofs   = None     
+    reserved  = 0     
+    flags     = S     
+    window    = 8192     
+    chksum    = None     
+    urgptr    = 0     
+    options   = {}
+-- RECEIVED -
+###[ IP ]###  
+    version   = 4L  
+    ihl       = 5L  
+    tos       = 0x0  
+    len       = 44  
+    id        = 0  
+    flags     = DF
+    frag      = 0L  
+    ttl       = 64  
+    proto     = tcp  
+    chksum    = 0x9970  
+    src       = 172.16.36.135  
+    dst       = 172.16.36.180  
+    \options   \ 
+###[ TCP ]###     
+    sport     = http     
+    dport     = ftp_data     
+    seq       = 3013979073L     
+    ack       = 1     
+    dataofs   = 6L     
+    reserved  = 0L     
+    flags     = SA     
+    window    = 5840     
+    chksum    = 0x801e     
+    urgptr    = 0     
+    options   = [('MSS', 1460)] 
+###[ Padding ]###        
+    load      = '\x00\x00'
+-- SENT -
+###[ IP ]###  
+    version   = 4  
+    ihl       = None  
+    tos       = 0x0  
+    len       = None  
+    id        = 1  
+    flags     =   
+    frag      = 0  
+    ttl       = 64  
+    proto     = tcp  
+    chksum    = None
+    src       = 172.16.36.180  
+    dst       = 172.16.36.135  
+    \options   \ 
+###[ TCP ]###     
+    sport     = ftp_data     
+    dport     = http     
+    seq       = 0     
+    ack       = 3013979074L     
+    dataofs   = None     
+    reserved  = 0     
+    flags     = A     
+    window    = 8192     
+    chksum    = None     
+    urgptr    = 0     
+    options   = {}
+-- RECEIVED -
+###[ IP ]###  
+    version   = 4L  
+    ihl       = 5L  
+    tos       = 0x0  
+    len       = 40  
+    id        = 0  
+    flags     = DF  
+    frag      = 0L  
+    ttl       = 64  
+    proto     = tcp  
+    chksum    = 0x9974  
+    src       = 172.16.36.135  
+    dst       = 172.16.36.180  
+    \options   \ 
+###[ TCP ]###     
+    sport     = http     
+    dport     = ftp_data
+    seq       = 3013979074L     
+    ack       = 0     
+    dataofs   = 5L     
+    reserved  = 0L     
+    flags     = R     
+    window    = 0     
+    chksum    = 0xaeb8     
+    urgptr    = 0     
+    options   = {} 
+###[ Padding ]###        
+    load      = '\x00\x00\x00\x00\x00\x00'
+```
+
+在脚本的输出中，我们看到了四个封包。第一个封包是发送的 SYN 请求，第二个封包时接收到的 SYN+ACK 回复，第三个封包时发送的 ACK 回复，之后接收到了 RST 封包，它是最后的 ACK 回复的响应。最后一个封包表明，在建立连接时出现了问题。Scapy 中可能能够建立完成的三次握手，但是它需要对本地 IP 表做一些调整。尤其是，如果你去掉发往远程系统的 TSR 封包，你就可以完成握手。通过使用 IP 表建立过滤机制，我们可以去掉 RST 封包来完成三次握手，而不会干扰到整个系统（这个配置出于功能上的原理并不推荐）。为了展示完整三次握手的成功建立，我们使用 Netcat 建立 TCP 监听服务。之后尝试使用 Scapy 连接开放的端口。
+
+```
+admin@ubuntu:~$ nc -lvp 4444 
+listening on [any] 4444 ... 
+```
+
+这个例子中，我们在 TCP 端口 4444 开启了监听服务。我们之后可以修改之前的脚本来尝试连接 端口 4444 上的 Netcat 监听服务。
+
+```
+#!/usr/bin/python
+
+import logging 
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR) 
+from scapy.all import *
+
+response = sr1(IP(dst="172.16.36.135")/TCP(dport=4444,flags='S')) 
+reply = sr1(IP(dst="172.16.36.135")/TCP(dport=4444,flags='A',ack=(resp onse[TCP].seq + 1)))
+```
+
+这个脚本中，SYN 请求发送给了监听端口。
