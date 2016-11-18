@@ -2190,3 +2190,111 @@ Portscan Finished: Scanned 150 ports, 141 ports were in state closed
 
 定义如何执行 TCP 连接扫描的底层机制和之前讨论的其它工具一样。和其他工具相比，Dmitry 的使用性主要源于简洁，并不需要管理多个配置项，像我们使用 Nmap 和 Metasploit 那样。我们可以轻易通过指定响应模式，以及将 IP 地址传递给他来启动 Dmitry。它能够快读扫描常用的 150 个端口，以及其中所有开放端口的值。
  
+## Netcat TCP 端口扫描
+
+由于 Netcat 是个网路哦套接字连接和管理工具，它可以轻易转换为 TCP 端口扫描工具。这个秘籍展示了如何使用 Netcat 执行 TCP 连接扫描。
+
+### 准备
+
+为了使用 Netcat 执行 TCP 连接扫描，你需要一个运行 TCP 网络服务的远程服务器。这个例子中我们使用 Metasploitable2 实例来执行任务。配置 Metasploitable2 的更多信息请参考第一章中的“安装 Metasploitable2”秘籍。
+
+### 操作步骤
+
+Netcat 是个非常易用，功能多样的网络工具，可以用于多种目的。Netcat 的一种非常高效的使用方式就是执行端口扫描。为了确定使用选项，`nc`应该以`-h`选项调用，像这样：
+
+```
+root@KaliLinux:~# nc -h 
+[v1.10-40] 
+connect to somewhere:  nc [-options] hostname port[s] [ports] ... 
+listen for inbound:  nc -l -p port [-options] [hostname] [port] 
+options:  
+  -c shell commands  as `-e'; use /bin/sh to exec [dangerous!!]
+  -e filename    program to exec after connect [dangerous!!]  
+  -b      allow broadcasts  
+  -g gateway    source-routing hop point[s], up to 8  
+  -G num      source-routing pointer: 4, 8, 12, ...  
+  -h      this cruft  
+  -i secs      delay interval for lines sent, ports scanned  
+  -k                      set keepalive option on socket 
+  -l      listen mode, for inbound connects  
+  -n      numeric-only IP addresses, no DNS 
+  -o file      hex dump of traffic  -p port      local port number  
+  -r      randomize local and remote ports  
+  -q secs      quit after EOF on stdin and delay of secs 
+  -s addr      local source address 
+  -T tos      set Type Of Service 
+  -t      answer TELNET negotiation 
+  -u      UDP mode 
+  -v      verbose [use twice to be more verbose] 
+  -w secs      timeout for connects and final net reads 
+  -z      zero-I/O mode [used for scanning] 
+port numbers can be individual or ranges: lo-hi [inclusive]; hyphens in port names must be backslash escaped (e.g. 'ftp\-data'). 
+```
+
+正如输出所表示的那样，`-z`选项可以高效用于扫描。为了扫描目标系统上的 TCP 80 端口，我们使用`-n`选项来表明所使用的 IP 地址，`-v`选项用于详细输出，`-z`选项用于扫描，像这样：
+
+```
+root@KaliLinux:~# nc -nvz 172.16.36.135 80 
+(UNKNOWN) [172.16.36.135] 80 (http) open 
+root@KaliLinux:~# nc -nvz 172.16.36.135 443 
+(UNKNOWN) [172.16.36.135] 443 (https) : Connection refused
+```
+
+开放端口上的扫描尝试执行会返回 IP 地址，端口地址，以及端口状态。对活动主机的关闭端口执行相同扫描会显式简介被拒绝。我们可以在寻呼哪种自动化这个过程，像这样：
+
+```
+root@KaliLinux:~# for x in $(seq 20 30); do nc -nvz 172.16.36.135 $x; done 
+(UNKNOWN) [172.16.36.135] 20 (ftp-data) : Connection refused 
+(UNKNOWN) [172.16.36.135] 21 (ftp) open
+(UNKNOWN) [172.16.36.135] 22 (ssh) open 
+(UNKNOWN) [172.16.36.135] 23 (telnet) open 
+(UNKNOWN) [172.16.36.135] 24 (?) : Connection refused 
+(UNKNOWN) [172.16.36.135] 25 (smtp) open 
+(UNKNOWN) [172.16.36.135] 26 (?) : Connection refused 
+(UNKNOWN) [172.16.36.135] 27 (?) : Connection refused 
+(UNKNOWN) [172.16.36.135] 28 (?) : Connection refused 
+(UNKNOWN) [172.16.36.135] 29 (?) : Connection refused 
+(UNKNOWN) [172.16.36.135] 30 (?) : Connection refused
+```
+
+通过将输出传递给`STDOUT`，之后过滤输出，我们能够分离出提供开放端口细节的行。我们甚至可以更加简明，通过仅仅提取我们需要的信息。如果单个主机被扫描了，我们可能能够利用第三和第四个字段；
+
+```
+root@KaliLinux:~# for x in $(seq 20 30); do nc -nvz 172.16.36.135 $x; done 2>&1 | grep open | cut -d " " -f 3-4 
+21 (ftp) 
+22 (ssh) 
+23 (telnet) 
+25 (smtp) 
+```
+
+通过从输出提取这些字段，`cut`函数可以用于以空格分隔符，之后通过指定要输出的字段分离这些行。但是，还有另一种高效的方法，就是在 Netcat 中指定端口范围，而不需要将工具传递金循环中。通过向`nc`中传入端口地址值的序列，Netcat 会自动展示其中的开放端口：
+
+```
+root@KaliLinux:~# nc 172.16.36.135 -nvz 20-30 
+(UNKNOWN) [172.16.36.135] 25 (smtp) open 
+(UNKNOWN) [172.16.36.135] 23 (telnet) open 
+(UNKNOWN) [172.16.36.135] 22 (ssh) open 
+(UNKNOWN) [172.16.36.135] 21 (ftp) open
+```
+
+但是，像之前那样，我们需要将它的输出传给`STDOUT`，以便将其传递给`cut`函数。通过展示 2 到 4 的字段，我们可以限制 IP 地址、端口号以及相关服务的输出，像这样：
+
+```
+root@KaliLinux:~# nc 172.16.36.135 -nvz 20-30 2>&1 | cut -d " " -f 2-4 
+[172.16.36.135] 25 (smtp) 
+[172.16.36.135] 23 (telnet) 
+[172.16.36.135] 22 (ssh) 
+[172.16.36.135] 21 (ftp)
+```
+
+我们可以在 bash 中使用`loop`函数来使用 Netcat 扫描多个主机地址序列，之后提取相同的细节来确定不同的被扫描 IP 地址中，哪个端口是开着的。
+
+```
+root@KaliLinux:~# for x in $(seq 0 255); do nc 172.16.36.$x -nvz 80 2>&1 | grep open | cut -d " " -f 2-4; done
+[172.16.36.135] 80 (http) 
+[172.16.36.180] 80 (http)
+```
+
+### 工作原理
+
+执行 TCP 连接扫描的同居通过执行完整的三次握手，和远程系统的所有被扫描端口建立连接。端口的状态取决于连接是否成功建立。如果连接建立，端口被认为是开放的，如果连接不能成功建立，端口被认为是关闭的。
