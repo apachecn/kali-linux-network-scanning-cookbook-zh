@@ -483,7 +483,7 @@ Module options (auxiliary/scanner/discovery/udp_sweep):
     THREADS    20               yes       The number of concurrent threads
 ```
 
-在上面的例子中，`RHOSTS`值修改为我们打算扫描的远程系统的 IP 地址。地外，线程数量修改为 20。`THREADS`的值定义了在后台执行的当前任务数量。确定线程数量涉及到寻找一个平衡，既能提升任务速度，又不会过度消耗系统资源。对于多数系统，20 个线程可以足够快，并且相当合理。修改了必要的变量之后，可以再次使用`show options`命令来验证。一旦所需配置验证完毕，就可以执行扫描了。
+在上面的例子中，`RHOSTS`值修改为我们打算扫描的远程系统的 IP 地址。此外，线程数量修改为 20。`THREADS`的值定义了在后台执行的当前任务数量。确定线程数量涉及到寻找一个平衡，既能提升任务速度，又不会过度消耗系统资源。对于多数系统，20 个线程可以足够快，并且相当合理。修改了必要的变量之后，可以再次使用`show options`命令来验证。一旦所需配置验证完毕，就可以执行扫描了。
 
 ```
 msf  auxiliary(udp_sweep) > run
@@ -1123,7 +1123,7 @@ Module options (auxiliary/scanner/portscan/syn):
    TIMEOUT    500              yes       The reply read timeout in milliseconds
 ```
 
-在上面的例子中，`RHOSTS`值修改为我们打算扫描的远程系统的 IP 地址。地外，线程数量修改为 20。`THREADS`的值定义了在后台执行的当前任务数量。确定线程数量涉及到寻找一个平衡，既能提升任务速度，又不会过度消耗系统资源。对于多数系统，20 个线程可以足够快，并且相当合理。`PORTS `值设为 TCP 端口 80（HTTP）。修改了必要的变量之后，可以再次使用`show options`命令来验证。一旦所需配置验证完毕，就可以执行扫描了。
+在上面的例子中，`RHOSTS`值修改为我们打算扫描的远程系统的 IP 地址。此外，线程数量修改为 20。`THREADS`的值定义了在后台执行的当前任务数量。确定线程数量涉及到寻找一个平衡，既能提升任务速度，又不会过度消耗系统资源。对于多数系统，20 个线程可以足够快，并且相当合理。`PORTS `值设为 TCP 端口 80（HTTP）。修改了必要的变量之后，可以再次使用`show options`命令来验证。一旦所需配置验证完毕，就可以执行扫描了。
 
 ```
 msf  auxiliary(syn) > run
@@ -1214,7 +1214,7 @@ msf  auxiliary(syn) > run
 [*] Auxiliary module execution completed
 ```
 
-在这个李忠，远程系统的所有开放端口都由扫描所有可能的 TCP 端口地址来识别。我们也可以修改扫描配置使用破折号记法来扫描地址序列。
+在这个例子中，远程系统的所有开放端口都由扫描所有可能的 TCP 端口地址来识别。我们也可以修改扫描配置使用破折号记法来扫描地址序列。
 
 ```
 msf  auxiliary(syn) > set RHOSTS 172.16.36.0-255 
@@ -1854,3 +1854,247 @@ Nmap done: 4 IP addresses (4 hosts up) scanned in 13.05 seconds
 ### 工作原理
 
 执行 TCP 连接扫描的同居通过执行完整的三次握手，和远程系统的所有被扫描端口建立连接。端口的状态取决于连接是否成功建立。如果连接建立，端口被认为是开放的，如果连接不能成功建立，端口被认为是关闭的。
+
+## 3.12 Metasploit 连接扫描
+
+除了其它可用的工具之外，Metasploit 拥有用于远程系统的 TCP 连接扫描的辅助模块。将 Metasploit 用于扫描，以及利用，能够高效减少用于完成渗透测试所需工具数量。这个秘籍展示了如何使用 Metasploit 来执行 TCP 连接扫描。
+
+### 准备
+
+为了使用 Metasploit 执行 TCP 连接扫描，你需要一个运行 TCP 网络服务的远程服务器。这个例子中我们使用 Metasploitable2 实例来执行任务。配置 Metasploitable2 的更多信息请参考第一章中的“安装 Metasploitable2”秘籍。
+
+### 操作步骤
+
+Metasploit 拥有可以对特定 TCP 端口执行 TCP 连接扫描的辅助模块。为了在 Kali 中启动 Metasploit，我们在终端中执行`msfconsole`命令。
+
+```
+root@KaliLinux:~# msfconsole 
+MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM 
+MMMMMMMMMMM                MMMMMMMMMM 
+MMMN$                           vMMMM 
+MMMNl  MMMMM             MMMMM  JMMMM 
+MMMNl  MMMMMMMN       NMMMMMMM  JMMMM 
+MMMNl  MMMMMMMMMNmmmNMMMMMMMMM  JMMMM 
+MMMNI  MMMMMMMMMMMMMMMMMMMMMMM  jMMMM 
+MMMNI  MMMMMMMMMMMMMMMMMMMMMMM  jMMMM 
+MMMNI  MMMMM   MMMMMMM   MMMMM  jMMMM 
+MMMNI  MMMMM   MMMMMMM   MMMMM  jMMMM 
+MMMNI  MMMNM   MMMMMMM   MMMMM  jMMMM 
+MMMNI  WMMMM   MMMMMMM   MMMM#  JMMMM 
+MMMMR  ?MMNM             MMMMM .dMMMM 
+MMMMNm `?MMM             MMMM` dMMMMM 
+MMMMMMN  ?MM             MM?  NMMMMMN 
+MMMMMMMMNe                 JMMMMMNMMM 
+MMMMMMMMMMNm,            eMMMMMNMMNMM 
+MMMMNNMNMMMMMNx        MMMMMMNMMNMMNM MMMMMMMMNMMNMMMMm+..+MMNMMNMNMMNMMNMM
+        http://metasploit.pro
+
+Tired of typing 'set RHOSTS'? Click & pwn with Metasploit Pro -- type 'go_pro' to launch it now.
+ 
+       =[ metasploit v4.6.0-dev [core:4.6 api:1.0] 
++ -- --=[ 1053 exploits - 590 auxiliary - 174 post 
++ -- --=[ 275 payloads - 28 encoders - 8 nops
+
+msf > use auxiliary/scanner/portscan/tcp 
+msf  auxiliary(tcp) > show options
+
+Module options (auxiliary/scanner/portscan/tcp):
+   
+    Name         Current Setting  Required  Description   
+    ----         ---------------  --------  ----------   
+    CONCURRENCY  10               yes       The number of concurrent ports to check per hos
+    PORTS        1-10000          yes       Ports to scan (e.g. 2225,80,110-900)   
+    RHOSTS                        yes       The target address range or CIDR identifier   
+    THREADS      1                yes       The number of concurrent threads   
+    TIMEOUT      1000             yes       The reply read timeout in milliseconds 
+```
+
+为了在 Metasploit 中执行 TCP 连接扫描，以辅助模块的相对路径调用`use`命令。一旦模块被选中，可以执行`show options`命令来确认或修改扫描配置。这个命令会展示四列的表格，包括`name`、`current settings`、`required`和`description`。`name`列标出了每个可配置变量的名称。`current settings`列列出了任何给定变量的现有配置。`required`列标出对于任何给定变量，值是否是必须的。`description`列描述了每个变量的功能。任何给定变量的值可以使用`set`命令，并且将新的值作为参数来修改。
+
+```
+msf  auxiliary(tcp) > set RHOSTS 172.16.36.135 
+RHOSTS => 172.16.36.135 
+msf  auxiliary(tcp) > set PORTS 80 
+PORTS => 80 
+msf  auxiliary(tcp) > show options
+
+Module options (auxiliary/scanner/portscan/tcp):
+
+   Name         Current Setting  Required  Description   
+   ----         ---------------  --------  ----------   
+   CONCURRENCY  10               yes       The number of concurrent ports to check per hos
+   PORTS        80               yes       Ports to scan (e.g. 2225,80,110-900)   
+   RHOSTS       172.16.36.135    yes       The target address range or CIDR identifier   
+   THREADS      1                yes       The number of concurrent threads   
+   TIMEOUT      1000             yes       The reply read timeout in milliseconds
+   
+msf  auxiliary(tcp) > run
+
+[*] 172.16.36.135:80 - TCP OPEN 
+[*] Scanned 1 of 1 hosts (100% complete) 
+[*] Auxiliary module execution completed
+```
+
+在上面的例子中，`RHOSTS`值修改为我们打算扫描的远程系统的 IP 地址。此外，线程数量修改为 20。`PORTS `值设为 TCP 端口 80（HTTP）。修改了必要的变量之后，可以再次使用`show options`命令来验证。一旦所需配置验证完毕，就可以执行扫描了。
+
+`run`命令对指定 IP 地址的 80 端口执行 TCP 连接扫描。这个 TCP 连接扫描也可以对 TCP 端口序列执行，通过提供第一个和最后一个值，以破折号分隔：
+
+```
+msf  auxiliary(tcp) > set PORTS 0-100 
+PORTS => 0-100 
+msf  auxiliary(tcp) > set THREADS 20 
+THREADS => 20
+msf  auxiliary(tcp) > show options
+
+Module options (auxiliary/scanner/portscan/tcp):
+
+   Name         Current Setting  Required  Description   
+   ----         ---------------  --------  ----------   
+   CONCURRENCY  10               yes       The number of concurrent ports to check per hos
+   PORTS        0-100            yes       Ports to scan (e.g. 2225,80,110-900)   
+   RHOSTS       172.16.36.135    yes       The target address range or CIDR identifier   
+   THREADS      20               yes       The number of concurrent threads   
+   TIMEOUT      1000              yes       The reply read timeout in milliseconds
+   
+msf  auxiliary(tcp) > run
+
+[*] 172.16.36.135:25 - TCP OPEN 
+[*] 172.16.36.135:23 - TCP OPEN 
+[*] 172.16.36.135:22 - TCP OPEN 
+[*] 172.16.36.135:21 - TCP OPEN 
+[*] 172.16.36.135:53 - TCP OPEN 
+[*] 172.16.36.135:80 - TCP OPEN 
+[*] Scanned 1 of 1 hosts (100% complete) 
+[*] Auxiliary module execution completed
+```
+
+这个例子中，线程数量修改为 20。`THREADS`的值定义了在后台执行的当前任务数量。确定线程数量涉及到寻找一个平衡，既能提升任务速度，又不会过度消耗系统资源。对于多数系统，20 个线程可以足够快，并且相当合理。虽然这个扫描识别了目标系统的多个设备，我们不能确认所有设备都识别出来，除非所有可能的端口地址都扫描到。定义来源和目标端口地址的TCP 头部部分是 16 位长。并且，每一位可以为 1 或者 0。因此，共有`2 ** 16`或 65536 个可能的 TCP 端口地址。对于要扫描的整个地址空间，需要提供 0 到 65535 的 端口范围，像这样：
+
+```
+msf  auxiliary(tcp) > set PORTS 0-65535 
+PORTS => 0-65535 
+msf  auxiliary(tcp) > show options
+
+Module options (auxiliary/scanner/portscan/tcp):
+
+   Name         Current Setting  Required  Description   
+   ----         ---------------  --------  ----------   
+   CONCURRENCY  10               yes       The number of concurrent ports to check per host
+   PORTS        0-65535          yes       Ports to scan (e.g. 2225,80,110-900)   
+   RHOSTS       172.16.36.135    yes       The target address range or CIDR identifier   
+   THREADS      20               yes       The number of concurrent threads   
+   TIMEOUT      1000             yes       The reply read timeout in milliseconds 
+   
+msf  auxiliary(tcp) > run
+
+[*] 172.16.36.135:25 - TCP OPEN 
+[*] 172.16.36.135:23 - TCP OPEN 
+[*] 172.16.36.135:22 - TCP OPEN 
+[*] 172.16.36.135:21 - TCP OPEN 
+[*] 172.16.36.135:53 - TCP OPEN 
+[*] 172.16.36.135:80 - TCP OPEN 
+[*] 172.16.36.135:111 - TCP OPEN 
+[*] 172.16.36.135:139 - TCP OPEN 
+[*] 172.16.36.135:445 - TCP OPEN 
+[*] 172.16.36.135:514 - TCP OPEN 
+[*] 172.16.36.135:513 - TCP OPEN 
+[*] 172.16.36.135:512 - TCP OPEN 
+[*] 172.16.36.135:1099 - TCP OPEN 
+[*] 172.16.36.135:1524 - TCP OPEN 
+[*] 172.16.36.135:2049 - TCP OPEN 
+[*] 172.16.36.135:2121 - TCP OPEN 
+[*] 172.16.36.135:3306 - TCP OPEN 
+[*] 172.16.36.135:3632 - TCP OPEN 
+[*] 172.16.36.135:5432 - TCP OPEN 
+[*] 172.16.36.135:5900 - TCP OPEN 
+[*] 172.16.36.135:6000 - TCP OPEN 
+[*] 172.16.36.135:6667 - TCP OPEN 
+[*] 172.16.36.135:6697 - TCP OPEN
+[*] 172.16.36.135:8009 - TCP OPEN 
+[*] 172.16.36.135:8180 - TCP OPEN 
+[*] 172.16.36.135:8787 - TCP OPEN 
+[*] 172.16.36.135:34789 - TCP OPEN 
+[*] 172.16.36.135:50333 - TCP OPEN 
+[*] 172.16.36.135:56375 - TCP OPEN 
+[*] 172.16.36.135:57385 - TCP OPEN
+[*] Scanned 1 of 1 hosts (100% complete) 
+[*] Auxiliary module execution completed
+```
+
+在这个例子中，远程系统的所有开放端口都由扫描所有可能的 TCP 端口地址来识别。我们也可以修改扫描配置使用破折号记法来扫描地址序列。
+
+```
+msf  auxiliary(tcp) > set RHOSTS 172.16.36.0-255 
+RHOSTS => 172.16.36.0-255 
+msf  auxiliary(tcp) > show options
+
+Module options (auxiliary/scanner/portscan/tcp):
+
+   Name         Current Setting  Required  Description   
+   ----         ---------------  --------  ----------  
+   CONCURRENCY  10               yes       The number of concurrent ports to check per host    
+   PORTS        80               yes       Ports to scan (e.g. 2225,80,110-900)   
+   RHOSTS       172.16.36.0-255  yes       The target address range or CIDR identifier   
+   THREADS      20               yes       The number of concurrent threads   
+   TIMEOUT      1000             yes       The reply read timeout in milliseconds
+   
+msf  auxiliary(tcp) > run
+
+[*] Scanned 026 of 256 hosts (010% complete) 
+[*] Scanned 056 of 256 hosts (021% complete) 
+[*] Scanned 078 of 256 hosts (030% complete)
+[*] Scanned 103 of 256 hosts (040% complete) 
+[*] 172.16.36.135:22 - TCP OPEN 
+[*] 172.16.36.135:80 - TCP OPEN 
+[*] 172.16.36.132:22 - TCP OPEN 
+[*] Scanned 128 of 256 hosts (050% complete) 
+[*] Scanned 161 of 256 hosts (062% complete) 
+[*] 172.16.36.180:22 - TCP OPEN 
+[*] 172.16.36.180:80 - TCP OPEN 
+[*] Scanned 180 of 256 hosts (070% complete) 
+[*] Scanned 206 of 256 hosts (080% complete) 
+[*] Scanned 232 of 256 hosts (090% complete) 
+[*] Scanned 256 of 256 hosts (100% complete) 
+[*] Auxiliary module execution completed
+```
+
+这个例子中，TCP 连接扫描执行在由`RHOST`变量指定的所有主机地址的 80 端口上。与之相似，`RHOSTS`可以使用 CIDR 记法定义网络范围。
+
+```
+msf  auxiliary(tcp) > set RHOSTS 172.16.36.0/24 
+RHOSTS => 172.16.36.0/24 
+msf  auxiliary(tcp) > show options
+
+Module options (auxiliary/scanner/portscan/tcp):
+
+   Name         Current Setting  Required  Description   
+   ----         ---------------  --------  ----------   
+   CONCURRENCY  10               yes       The number of concurrent ports to check per host 
+   PORTS        80               yes       Ports to scan (e.g. 2225,80,110-900)   
+   RHOSTS       172.16.36.0/24   yes       The target address range or CIDR identifier   
+   THREADS      20               yes       The number of concurrent threads   
+   TIMEOUT      1000             yes       The reply read timeout in milliseconds
+   
+msf  auxiliary(tcp) > run
+
+[*] Scanned 038 of 256 hosts (014% complete) 
+[*] Scanned 053 of 256 hosts (020% complete) 
+[*] Scanned 080 of 256 hosts (031% complete) 
+[*] Scanned 103 of 256 hosts (040% complete) 
+[*] 172.16.36.135:80 - TCP OPEN 
+[*] 172.16.36.135:22 - TCP OPEN 
+[*] 172.16.36.132:22 - TCP OPEN 
+[*] Scanned 138 of 256 hosts (053% complete) 
+[*] Scanned 157 of 256 hosts (061% complete) 
+[*] 172.16.36.180:22 - TCP OPEN 
+[*] 172.16.36.180:80 - TCP OPEN 
+[*] Scanned 182 of 256 hosts (071% complete) 
+[*] Scanned 210 of 256 hosts (082% complete) 
+[*] Scanned 238 of 256 hosts (092% complete) 
+[*] Scanned 256 of 256 hosts (100% complete) 
+[*] Auxiliary module execution completed
+```
+
+### 工作原理
+
+Metasploit TCP 连接扫描辅助模块背后的底层原理和任何其它 TCP 连扫描工具一样。使用 MEtasploit 来执行这种扫描的有点事，它可以降低所需工具的总数。
