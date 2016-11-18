@@ -1631,3 +1631,226 @@ target     prot opt source               destination
 ### 工作原理
 
 执行 TCP 连接扫描的同居通过执行完整的三次握手，和远程系统的所有被扫描端口建立连接。端口的状态取决于连接是否成功建立。如果连接建立，端口被认为是开放的，如果连接不能成功建立，端口被认为是关闭的。
+
+## 3.11 Nmap 连接扫描
+
+TCP 连接扫描通过与远程主机上的每个被扫描的端口建立完整的 TCP 连接来执行。这个秘籍展示了如何使用 Namp 来执行 TCP 连接扫描。
+
+### 准备
+
+为了使用 Nmap 执行 TCP 隐秘扫描，你需要一个运行 TCP 网络服务的远程服务器。这个例子中我们使用 Metasploitable2 实例来执行任务。配置 Metasploitable2 的更多信息请参考第一章中的“安装 Metasploitable2”秘籍。
+
+### 操作步骤
+
+Nmap 拥有简化 TCP 连接扫描执行过程的选项。为了使用 Nmap 执行 TCP 连接扫描，应使用`-sT`选项，并附带被扫描主机的 IP 地址。
+
+```
+root@KaliLinux:~# nmap -sT 172.16.36.135 -p 80
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-17 22:03 EST
+Nmap scan report for 172.16.36.135 
+Host is up (0.00072s latency). 
+PORT   STATE SERVICE 
+80/tcp open  http 
+MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Nmap done: 1 IP address (1 host up) scanned in 13.05 seconds 
+```
+
+在提供的例子中，特定的 IP 地址的 TCP 80 端口上执行了 TCP 隐秘扫描。和 Scapy 中的技巧相似，Nmap 监听响应并通过分析响应中所激活的 TCP 标识来识别开放端口。我们也可以使用 Namp 执行多个特定端口的扫描，通过传递逗号分隔的端口号列表。
+
+```
+root@KaliLinux:~# nmap -sT 172.16.36.135 -p 21,80,443
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-17 22:03 EST 
+Nmap scan report for 172.16.36.135 
+Host is up (0.00012s latency). 
+PORT    STATE  SERVICE 
+21/tcp  open   ftp 
+80/tcp  open   http 
+443/tcp closed https 
+MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Nmap done: 1 IP address (1 host up) scanned in 13.05 seconds 
+```
+
+在这个例子中，目标 IP 地址的端口 21、80 和 443 上执行了 TCP 连接扫描。我们也可以使用 Namp 来扫描主机序列，通过标明要扫描的第一个和最后一个端口号，以破折号分隔：
+
+```
+root@KaliLinux:~# nmap -sT 172.16.36.135 -p 20-25
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-17 21:48 EST 
+Nmap scan report for 172.16.36.135 
+Host is up (0.00019s latency). 
+PORT   STATE  SERVICE 
+20/tcp closed ftp-data 
+21/tcp open   ftp
+22/tcp open   ssh 
+23/tcp open   telnet 
+24/tcp closed priv-mail 
+25/tcp open   smtp 
+MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Nmap done: 1 IP address (1 host up) scanned in 13.05 seconds 
+```
+
+在所提供的例子中，SYN 扫描在 TCP 20 到 25 端口上执行。除了拥有指定被扫描端口的能力之外。Nmap 同时拥有配置好的 1000 和常用端口的列表。我们可以执行这些端口上的扫描，通过不带任何端口指定信息来运行 Nmap：
+
+```
+root@KaliLinux:~# nmap -sT 172.16.36.135
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-17 22:13 EST 
+Nmap scan report for 172.16.36.135 
+Host is up (0.00025s latency). 
+Not shown: 977 closed ports 
+PORT     STATE SERVICE 
+21/tcp   open  ftp 
+22/tcp   open  ssh 
+23/tcp   open  telnet 
+25/tcp   open  smtp 
+53/tcp   open  domain 
+80/tcp   open  http 
+111/tcp  open  rpcbind 
+139/tcp  open  netbios-ssn 
+445/tcp  open  microsoft-ds 
+512/tcp  open  exec 
+513/tcp  open  login 
+514/tcp  open  shell 
+1099/tcp open  rmiregistry 
+1524/tcp open  ingreslock 
+2049/tcp open  nfs 
+2121/tcp open  ccproxy-ftp 
+3306/tcp open  mysql
+5432/tcp open  postgresql 
+5900/tcp open  vnc 
+6000/tcp open  X11 
+6667/tcp open  irc 
+8009/tcp open  ajp13 
+8180/tcp open  unknown 
+MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Nmap done: 1 IP address (1 host up) scanned in 13.13 seconds 
+```
+
+在上面的例子中，扫描了 Nmap 定义的 1000 个常用端口，用于识别 Metasploitable2  系统上的大量开放端口。虽然这个技巧在是被多数设备上很高效，但是也可能无法识别模糊的服务或者不常见的端口组合。如果扫描在所有可能的 TCP 端口上执行，所有可能的端口地址值都需要被扫描。定义了源端口和目标端口地址的 TCP 头部部分是 16 位长。并且，每一位可以为 1 或者 0。因此，共有`2 ** 16`或者 65536 个可能的 TCP 端口地址。对于要扫描的全部可能的地址空间，需要提供 0 到 65535 的端口范围，像这样：
+
+```
+root@KaliLinux:~# nmap -sT 172.16.36.135 -p 0-65535
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-17 22:14 EST 
+Nmap scan report for 172.16.36.135 
+Host is up (0.00076s latency). 
+Not shown: 65506 closed ports 
+PORT      STATE SERVICE 
+21/tcp    open  ftp 
+22/tcp    open  ssh 
+23/tcp    open  telnet 
+25/tcp    open  smtp 
+53/tcp    open  domain 
+80/tcp    open  http 
+111/tcp   open  rpcbind 
+139/tcp   open  netbios-ssn 
+445/tcp   open  microsoft-ds 
+512/tcp   open  exec 
+513/tcp   open  login 
+514/tcp   open  shell
+1099/tcp  open  rmiregistry 
+1524/tcp  open  ingreslock 
+2049/tcp  open  nfs 
+2121/tcp  open  ccproxy-ftp 
+3306/tcp  open  mysql 
+3632/tcp  open  distccd 
+5432/tcp  open  postgresql 
+5900/tcp  open  vnc 
+6000/tcp  open  X11 
+6667/tcp  open  irc 
+6697/tcp  open  unknown 
+8009/tcp  open  ajp13 
+8180/tcp  open  unknown 
+8787/tcp  open  unknown 
+34789/tcp open  unknown 
+50333/tcp open  unknown 
+56375/tcp open  unknown 
+57385/tcp open  unknown 
+MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Nmap done: 1 IP address (1 host up) scanned in 17.05 seconds 
+```
+
+这个例子中，Metasploitable2 系统上所有可能的 65536 和 TCP 地址都扫描了一遍。要注意该扫描中识别的多数服务都在标准的 Nmap 1000 扫描中识别过了。这就表明在尝试识别目标的所有可能的攻击面的时候，完整扫描是个最佳实践。Nmap 可以使用破折号记法，扫描主机列表上的 TCP 端口：
+
+```
+root@KaliLinux:~# nmap 172.16.36.0-255 -sT -p 80
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-17 22:16 EST 
+Nmap scan report for 172.16.36.1 Host is up (0.00026s latency). 
+PORT   STATE  SERVICE 
+80/tcp closed http 
+MAC Address: 00:50:56:C0:00:08 (VMware)
+
+Nmap scan report for 172.16.36.2 Host is up (0.00018s latency). 
+PORT   STATE  SERVICE 
+80/tcp closed http 
+MAC Address: 00:50:56:FF:2A:8E (VMware)
+
+Nmap scan report for 172.16.36.132 Host is up (0.00047s latency). 
+PORT   STATE  SERVICE 
+80/tcp closed http 
+MAC Address: 00:0C:29:65:FC:D2 (VMware)
+
+Nmap scan report for 172.16.36.135 
+Host is up (0.00016s latency). 
+PORT   STATE SERVICE 
+80/tcp open  http 
+MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Nmap scan report for 172.16.36.180 
+Host is up (0.0029s latency). 
+PORT   STATE SERVICE 
+80/tcp open  http
+
+Nmap done: 256 IP addresses (5 hosts up) scanned in 42.55 seconds 
+```
+
+这个例子中，TCP 80 端口的 TCP 连接扫描在指定地址范围内的所有主机上执行。虽然这个特定的扫描仅仅执行在单个端口上，Nmap 也能够同时扫描多个系统上的多个端口和端口范围。此外，Nmap 也能够进行配置，基于 IP 地址的输入列表来扫描主机。这可以通过`-iL`选项并指定文件名，如果文件存放于执行目录中，或者文件路径来完成。Nmap 之后会遍历输入列表中的每个地址，并对地址执行特定的扫描。
+
+```
+root@KaliLinux:~# cat iplist.txt 
+172.16.36.1 
+172.16.36.2 
+172.16.36.132 
+172.16.36.135
+
+root@KaliLinux:~# nmap -sT -iL iplist.txt -p 80
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-17 22:17 EST 
+Nmap scan report for 172.16.36.1 
+Host is up (0.00016s latency). 
+PORT   STATE  SERVICE 
+80/tcp closed http 
+MAC Address: 00:50:56:C0:00:08 (VMware)
+
+Nmap scan report for 172.16.36.2 
+Host is up (0.00047s latency). 
+PORT   STATE  SERVICE 
+80/tcp closed http 
+MAC Address: 00:50:56:FF:2A:8E (VMware)
+
+Nmap scan report for 172.16.36.132 
+Host is up (0.00034s latency). 
+PORT   STATE  SERVICE 
+80/tcp closed http 
+MAC Address: 00:0C:29:65:FC:D2 (VMware)
+
+Nmap scan report for 172.16.36.135 
+Host is up (0.00016s latency). 
+PORT   STATE SERVICE 
+80/tcp open  http 
+MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Nmap done: 4 IP addresses (4 hosts up) scanned in 13.05 seconds
+```
+
+### 工作原理
+
+执行 TCP 连接扫描的同居通过执行完整的三次握手，和远程系统的所有被扫描端口建立连接。端口的状态取决于连接是否成功建立。如果连接建立，端口被认为是开放的，如果连接不能成功建立，端口被认为是关闭的。
