@@ -833,7 +833,7 @@ root@KaliLinux:~# ./syn_scan.py 172.16.36.135 1 100
 
 ## 3.7 Nmap 隐秘扫描
 
-Nmap 拥有可以执行远程系统 SYN 扫描的扫描模式。这个秘籍展示了如何使用 Namp 执行 TCP 隐秘扫描。
+Nmap 拥有可以执行远程系统 SYN 扫描的扫描模式。这个秘籍展示了如何使用 Nmap 执行 TCP 隐秘扫描。
 
 ### 准备
 
@@ -856,7 +856,7 @@ MAC Address: 00:0C:29:3D:84:32 (VMware)
 Nmap done: 1 IP address (1 host up) scanned in 13.05 seconds 
 ```
 
-在提供的例子中，特定的 IP 地址的 TCP 80 端口上执行了 TCP 隐秘扫描。和 Scapy 中的技巧相似，Nmap 监听响应并通过分析响应中所激活的 TCP 标识来识别开放端口。我们也可以使用 Namp 执行多个特定端口的扫描，通过传递逗号分隔的端口号列表。
+在提供的例子中，特定的 IP 地址的 TCP 80 端口上执行了 TCP 隐秘扫描。和 Scapy 中的技巧相似，Nmap 监听响应并通过分析响应中所激活的 TCP 标识来识别开放端口。我们也可以使用 Nmap 执行多个特定端口的扫描，通过传递逗号分隔的端口号列表。
 
 ```
 root@KaliLinux:~# nmap -sS 172.16.36.135 -p 21,80,443
@@ -873,7 +873,7 @@ MAC Address: 00:0C:29:3D:84:32 (VMware)
 Nmap done: 1 IP address (1 host up) scanned in 13.05 seconds 
 ```
 
-在这个例子中，目标 IP 地址的端口 21、80 和 443 上执行了 SYN 扫描。我们也可以使用 Namp 来扫描主机序列，通过标明要扫描的第一个和最后一个端口号，以破折号分隔：
+在这个例子中，目标 IP 地址的端口 21、80 和 443 上执行了 SYN 扫描。我们也可以使用 Nmap 来扫描主机序列，通过标明要扫描的第一个和最后一个端口号，以破折号分隔：
 
 ```
 root@KaliLinux:~# nmap -sS 172.16.36.135 -p 20-25
@@ -1634,7 +1634,7 @@ target     prot opt source               destination
 
 ## 3.11 Nmap 连接扫描
 
-TCP 连接扫描通过与远程主机上的每个被扫描的端口建立完整的 TCP 连接来执行。这个秘籍展示了如何使用 Namp 来执行 TCP 连接扫描。
+TCP 连接扫描通过与远程主机上的每个被扫描的端口建立完整的 TCP 连接来执行。这个秘籍展示了如何使用 Nmap 来执行 TCP 连接扫描。
 
 ### 准备
 
@@ -1657,7 +1657,7 @@ MAC Address: 00:0C:29:3D:84:32 (VMware)
 Nmap done: 1 IP address (1 host up) scanned in 13.05 seconds 
 ```
 
-在提供的例子中，特定的 IP 地址的 TCP 80 端口上执行了 TCP 隐秘扫描。和 Scapy 中的技巧相似，Nmap 监听响应并通过分析响应中所激活的 TCP 标识来识别开放端口。我们也可以使用 Namp 执行多个特定端口的扫描，通过传递逗号分隔的端口号列表。
+在提供的例子中，特定的 IP 地址的 TCP 80 端口上执行了 TCP 隐秘扫描。和 Scapy 中的技巧相似，Nmap 监听响应并通过分析响应中所激活的 TCP 标识来识别开放端口。我们也可以使用 Nmap 执行多个特定端口的扫描，通过传递逗号分隔的端口号列表。
 
 ```
 root@KaliLinux:~# nmap -sT 172.16.36.135 -p 21,80,443
@@ -1674,7 +1674,7 @@ MAC Address: 00:0C:29:3D:84:32 (VMware)
 Nmap done: 1 IP address (1 host up) scanned in 13.05 seconds 
 ```
 
-在这个例子中，目标 IP 地址的端口 21、80 和 443 上执行了 TCP 连接扫描。我们也可以使用 Namp 来扫描主机序列，通过标明要扫描的第一个和最后一个端口号，以破折号分隔：
+在这个例子中，目标 IP 地址的端口 21、80 和 443 上执行了 TCP 连接扫描。我们也可以使用 Nmap 来扫描主机序列，通过标明要扫描的第一个和最后一个端口号，以破折号分隔：
 
 ```
 root@KaliLinux:~# nmap -sT 172.16.36.135 -p 20-25
@@ -1853,7 +1853,7 @@ Nmap done: 4 IP addresses (4 hosts up) scanned in 13.05 seconds
 
 ### 工作原理
 
-执行 TCP 连接扫描的同居通过执行完整的三次握手，和远程系统的所有被扫描端口建立连接。端口的状态取决于连接是否成功建立。如果连接建立，端口被认为是开放的，如果连接不能成功建立，端口被认为是关闭的。
+执行 TCP 连接扫描的工具通过执行完整的三次握手，和远程系统的所有被扫描端口建立连接。端口的状态取决于连接是否成功建立。如果连接建立，端口被认为是开放的，如果连接不能成功建立，端口被认为是关闭的。
 
 ## 3.12 Metasploit 连接扫描
 
@@ -2455,3 +2455,130 @@ Scanning target 172.16.36.135 with zombie 172.16.36.134
 ### 工作原理
 
 僵尸扫描是个枚举目标系统开放端口的隐秘方式，不需要留下任何交互的痕迹。将伪造请求的组合发给目标系统，以及将正常请求发给僵尸系统，我们就可以通过评估僵尸系统的响应的 IPID 值来映射目标系统的开放端口。
+
+## 3.18 Nmap 僵尸扫描
+
+就像上一个秘籍,在编程自定义脚本对于理解僵尸扫描背后的工作原理很有帮助。Nmap 中还有另一种高效的扫描模式，可以用于执行僵尸扫描。这个秘籍展示了如何使用 Nmap 执行僵尸扫描。
+
+### 准备
+
+为了使用 Nmap 执行僵尸扫描，你需要拥有运行 TCP 服务的远程系统，以及另一个拥有 IPID 递增序列的远程系统。在所提供的例子中，Metasploitable2 用作扫描目标，WindowsXP 用作 IPID 递增的僵尸。关于如何在本地实验环境下配置系统的更多信息，请参考第一章的“安装 Metasploitable2”和“安装 Windows 服务器”秘籍。此外，这一节也需要使用文本编辑器将脚本写到文件系统，例如 VIM 或 Nano。如何编写脚本的更多信息，请参考第一章中的“使用文本编辑器（VIM 或 Nano）”秘籍。
+
+### 操作步骤
+
+僵尸扫描可以在 Nmap 中带参数执行。但是，我们可以使用 Metasploit 快速发现任何可用的僵尸候选项，通过扫描整个地址范围和评估 PIPD 序列，而不是使用 Nmap 僵尸扫描。为了这样做，我们需要使用`msfconsole`命令打开 Metasploit，并选项 IPID 序列辅助模块，像这样：
+
+```
+root@KaliLinux:~# msfconsole  
++-------------------------------------------------------+  
+|  METASPLOIT by Rapid7                                 |  
++---------------------------+---------------------------+
+|      __________________   |                           |  
+|  ==c(______(o(______(_()  | |""""""""""""|======[***  |  
+|             )=\           | |  EXPLOIT   \            |  
+|            // \\          | |_____________\_______    |  
+|           //   \\         | |==[msf >]============\   |  
+|          //     \\        | |______________________\  |  
+|         // RECON \\       | \(@)(@)(@)(@)(@)(@)(@)/   |  
+|        //         \\      |  *********************    |  
++---------------------------+---------------------------+  
+|      o O o                |        \'\/\/\/'/         |  
+|              o O          |         )======(          |  
+|                 o         |       .'  LOOT  '.        |  
+| |^^^^^^^^^^^^^^|l___      |      /    _||__   \       |  
+| |    PAYLOAD     |""\___, |     /    (_||_     \      |  
+| |________________|__|)__| |    |     __||_)     |     |  
+| |(@)(@)"""**|(@)(@)**|(@) |    "       ||       "     |  
+|  = = = = = = = = = = = =  |     '--------------'      |  
++---------------------------+---------------------------+
+
+Using notepad to track pentests? Have Metasploit Pro report on hosts, services, sessions and evidence -- type 'go_pro' to launch it now.
+
+       =[ metasploit v4.6.0-dev [core:4.6 api:1.0] 
++ -- --=[ 1053 exploits - 590 auxiliary - 174 post 
++ -- --=[ 275 payloads - 28 encoders - 8 nops
+
+msf > use auxiliary/scanner/ip/ipidseq 
+msf  auxiliary(ipidseq) > show options
+
+Module options (auxiliary/scanner/ip/ipidseq):
+
+   Name       Current Setting  Required  Description   
+   ----       ---------------  --------  ----------   
+   INTERFACE                   no        The name of the interface   
+   RHOSTS                      yes       The target address range or CIDR identifier   
+   RPORT      80               yes       The target port
+   SNAPLEN    65535            yes       The number of bytes to capture   
+   THREADS    1                yes       The number of concurrent threads   
+   TIMEOUT    500              yes       The reply read timeout in milliseconds 
+```
+
+这个辅助模块可以用于在主机地址序列或网络范围中执行扫描，可以使用 CIDR 记法来定义。为了使扫描速度增加，我们可以将`THREADS`变量设为合理的并发任务数量，像这样：
+
+```
+msf  auxiliary(ipidseq) > set RHOSTS 172.16.36.0/24 
+RHOSTS => 172.16.36.0/24 
+msf  auxiliary(ipidseq) > set THREADS 25 
+THREADS => 25 
+msf  auxiliary(ipidseq) > show options
+
+Module options (auxiliary/scanner/ip/ipidseq):
+
+   Name       Current Setting  Required  Description   
+   ----       ---------------  --------  ----------   INTERFACE                   no        The name of the interface   
+   RHOSTS     172.16.36.0/24   yes       The target address range or CIDR identifier   
+   RPORT      80               yes       The target port   
+   SNAPLEN    65535            yes       The number of bytes to capture   
+   THREADS    25               yes       The number of concurrent threads   
+   TIMEOUT    500              yes       The reply read timeout in milliseconds 
+```
+
+一旦为所需变量设置了合理的值，我们可以使用`show options`来再次验证扫描配置。IPID 序列扫描之后可以使用`run`命令来执行。
+
+```
+msf  auxiliary(ipidseq) > run
+
+[*] 172.16.36.1's IPID sequence class: Randomized 
+[*] 172.16.36.2's IPID sequence class: Incremental! 
+[*] Scanned 026 of 256 hosts (010% complete) 
+[*] Scanned 052 of 256 hosts (020% complete) 
+[*] Scanned 077 of 256 hosts (030% complete)
+[*] Scanned 103 of 256 hosts (040% complete) 
+[*] Scanned 128 of 256 hosts (050% complete) 
+[*] 172.16.36.134's IPID sequence class: Incremental! 
+[*] 172.16.36.135's IPID sequence class: All zeros 
+[*] Scanned 154 of 256 hosts (060% complete) 
+[*] Scanned 180 of 256 hosts (070% complete) 
+[*] Scanned 205 of 256 hosts (080% complete) 
+[*] Scanned 231 of 256 hosts (090% complete) 
+[*] Scanned 256 of 256 hosts (100% complete) 
+[*] Auxiliary module execution completed 
+```
+
+由于 IPID 序列扫描模块会遍历所提供的网络范围，它会识别被发现主机的 IPID 序列模式，并且表示出哪些是 0，随机或递增的。用于僵尸扫描的理想候选项必须拥有递增的 IPID，并且不会被网络上的其它主机严重影响。一旦识别了递增的独立主机，我们可以在 Nmap 中使用`-sI`选项并且传入僵尸主机的 IP 地址来执行僵尸扫描。
+
+```
+root@KaliLinux:~# nmap 172.16.36.135 -sI 172.16.36.134 -Pn -p 0-100
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2014-01-26 14:05 CST I
+dle scan using zombie 172.16.36.134 (172.16.36.134:80); Class: Incremental 
+Nmap scan report for 172.16.36.135 
+Host is up (0.045s latency). 
+Not shown: 95 closed|filtered ports 
+PORT   STATE SERVICE 
+21/tcp open  ftp 
+22/tcp open  ssh 
+23/tcp open  telnet 
+25/tcp open  smtp 
+53/tcp open  domain 
+80/tcp open  
+http MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Nmap done: 1 IP address (1 host up) scanned in 2.75 seconds
+```
+
+上面的例子中，僵尸扫描执行在扫描目标`172.16.36.135`的前 100 个 TCP 端口上。独立主机`172.16.36.134 `用作僵尸，`-Pn`选项用于阻止 Nmap 尝试 ping 扫描目标。这个示例中，我们识别并枚举了所有列出的开放端口，而不会直接和被扫描主机交互。反之，伪造了来源的封包会发给扫描目标，并且只有扫描系统和僵尸主机之间才有直接的交互。
+
+### 工作原理
+
+僵尸扫描的底层机制和上一个秘籍中讨论过的 Scapy 的例子相同。但是，使用 Nmap 僵尸扫描模式使我们能够使用知名的集成工具来快速执行此类工具。
