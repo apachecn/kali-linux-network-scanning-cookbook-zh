@@ -291,3 +291,58 @@ Portscan Finished: Scanned 150 ports, 141 ports were in state closed
 ### 工作原理
 
 Dmitry 是个非常简单的命令工具，可以以少量开销执行特征抓取任务。比起指定需要尝试特征抓取的端口，Dmitry 可以自动化这个过程，通过仅仅在小型的预定义和常用端口集合中尝试特征抓取。来自运行在这些端口地址的特征之后会在脚本的终端输出中显示。
+
+## 4.4 Nmap NSE 特征抓取
+
+Nmap 拥有集成的 Nmap 脚本引擎（NSE），可以用于从运行在远程端口的网络服务中读取特征。这个秘籍展示了如何使用 Nmap NSE 来获取服务特征，以便识别与目标系统的开放端口相关的服务。
+
+### 准备
+
+为了使用 Nmap NSE 套接字收集服务特征，在客户端服务连接时，你需要拥有运行开放信息的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
+
+### 操作步骤
+
+Nmap NSE 脚本可以在 Nmap 中使用`--script`选项，之后指定脚本名称来调用。对于这个特定的脚本，会使用`-sT`全连接扫描，因为服务特征只能通过建立 TCP 全连接在收集。这个脚本会在通过 Nmap 请求扫描的相同端口上使用。
+
+```
+root@KaliLinux:~# nmap -sT 172.16.36.135 -p 22 --script=banner
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-19 04:56 EST 
+Nmap scan report for 172.16.36.135 
+Host is up (0.00036s latency). 
+PORT   STATE SERVICE 
+22/tcp open  ssh 
+|_banner: SSH-2.0-OpenSSH_4.7p1 Debian-8ubuntu1 
+MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Nmap done: 1 IP address (1 host up) scanned in 0.07 seconds 
+```
+
+在提供的例子中，扫描了 Metasploitable2 系统的端口 22。除了表明端口打开之外，Nmap 也使用特征脚本来收集与该端口相关的服务特征。可以使用`--notation`，在端口范围内使用相同机制。
+
+```
+root@KaliLinux:~# nmap -sT 172.16.36.135 -p 1-100 --script=banner
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-19 04:56 EST
+Nmap scan report for 172.16.36.135 
+Host is up (0.0024s latency). 
+Not shown: 94 closed ports 
+PORT   STATE SERVICE 
+21/tcp open  ftp 
+|_banner: 220 (vsFTPd 2.3.4) 
+22/tcp open  ssh 
+|_banner: SSH-2.0-OpenSSH_4.7p1 Debian-8ubuntu1 
+23/tcp open  telnet 
+|_banner: \xFF\xFD\x18\xFF\xFD \xFF\xFD#\xFF\xFD' 
+25/tcp open  smtp 
+|_banner: 220 metasploitable.localdomain ESMTP Postfix (Ubuntu) 
+53/tcp open  domain 
+80/tcp open  http 
+MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Nmap done: 1 IP address (1 host up) scanned in 10.26 seconds
+```
+
+### 工作原理
+
+另一个用于执行特征抓取的选择就是使用 Nmap NSE 脚本。这可以以两种方式有效简化信息收集过程：首先，由于 Nmap 已经存在于你的工具库中，经常用于目标和服务探索；其次，因为特征抓取过程可以和这些扫描一起执行。 带有附加脚本选项和特征参数的 TCP 连接扫描可以完成服务枚举和特征收集的任务。
