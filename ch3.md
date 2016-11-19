@@ -2298,3 +2298,160 @@ root@KaliLinux:~# for x in $(seq 0 255); do nc 172.16.36.$x -nvz 80 2>&1 | grep 
 ### 工作原理
 
 执行 TCP 连接扫描的同居通过执行完整的三次握手，和远程系统的所有被扫描端口建立连接。端口的状态取决于连接是否成功建立。如果连接建立，端口被认为是开放的，如果连接不能成功建立，端口被认为是关闭的。
+
+## 3.15 Scapy 僵尸扫描
+
+我们可以识别目标系统的开放端口，而不留下和系统交互的证据。这种机器隐蔽的扫描形式就是僵尸扫描，并且只能在网络中存在其他拥有少量网络服务和递增 IPID 序列的主机时执行。这个秘籍展示了如何使用 Scapy 执行僵尸扫描。
+
+### 准备
+
+为了使用 Scapy 执行僵尸扫描，你需要拥有运行 TCP 服务的远程系统，以及另一个拥有 IPID 递增序列的远程系统。在所提供的例子中，Metasploitable2 用作扫描目标，WindowsXP 用作 IPID 递增的僵尸。关于如何在本地实验环境下配置系统的更多信息，请参考第一章的“安装 Metasploitable2”和“安装 Windows 服务器”秘籍。此外，这一节也需要使用文本编辑器将脚本写到文件系统，例如 VIM 或 Nano。如何编写脚本的更多信息，请参考第一章中的“使用文本编辑器（VIM 或 Nano）”秘籍。
+
+### 操作步骤
+
+所有 IP 封包中都存在的值是 ID 号。取决于系统，ID 号会随机生成，可能始终从零开始，或者可能在每个发送的 IP 封包中都递增 1。如果发现了 IPID 递增的主机，并且这个主机并不和其它网路系统交互，它就可以用作识别其它系统上开放端口的手段。我们可以通过发送一系列 IP 封包，并分析响应，来识别远程系统的 IPID 序列模式。
+
+```
+>>> reply1 = sr1(IP(dst="172.16.36.134")/TCP(flags="SA"),timeout=2,verbo se=0) 
+>>> reply2 = sr1(IP(dst="172.16.36.134")/TCP(flags="SA"),timeout=2,verbo se=0) 
+>>> reply1.display()
+
+###[ IP ]###  
+    version= 4L  
+    ihl= 5L  
+    tos= 0x0  
+    len= 40  
+    id= 61  
+    flags=
+    frag= 0L 
+    ttl= 128 
+    proto= tcp 
+    chksum= 0x9938 
+    src= 172.16.36.134
+    dst= 172.16.36.180 
+    \options\ 
+###[ TCP ]###  
+    sport= http   
+    dport= ftp_data  
+    seq= 0    
+    ack= 0 
+    dataofs= 5L  
+    reserved= 0L  
+    flags= R   
+    window= 0     
+    chksum= 0xe22 
+    urgptr= 0  
+    options= {}
+###[ Padding ]###  
+    load= '\x00\x00\x00\x00\x00\x00' 
+>>> reply2.display()
+###[ IP ]### 
+    version= 4L 
+    ihl= 5L
+    tos= 0x0  
+    len= 40 
+    id= 62 
+    flags= 
+    frag= 0L 
+    ttl= 128
+    proto= tcp 
+    chksum= 0x992d 
+    src= 172.16.36.134 
+    dst= 172.16.36.180
+    \options\ 
+###[ TCP ]###   
+    sport= http    
+    dport= ftp_data 
+    seq= 0   
+    ack= 0    
+    dataofs= 5L  
+    reserved= 0L 
+    flags= R   
+    window= 0   
+    chksum= 0xe22   
+    urgptr= 0  
+    options= {}
+###[ Padding ]###  
+    load= '\x00\x00\x00\x00\x00\x00'
+```
+
+如果我们向 Windows 独立系统发送两个 IP 封包，我们可以检测响应中的 ID 属性的整数值。要注意第一个请求的回复的 ID 是 61，第二个是 62。这个主机确实存在递增的 IPID 序列，并假设它保持独立。它可以用作高效的僵尸，来进行僵尸扫描。为了执行僵尸扫描，必须向僵尸系统发送初始的 SYN+ACK 请求，来判断返回的 RST 中的当前 IPID 值。之后，向扫描目标发送伪造的 SYN 扫描，带有僵尸系统的 IP 原地址。如果端口是打开的，扫描目标会发送 SYN+ACK 响应给僵尸。由于僵尸没有实际发送初始的 SYN 请求，它会将 SYN+ACK 解释为来路不明，并且项目表发送 RST 封包。因此将 IPID 增加 1。最后，应该向僵尸发送另一个 SYN+ACK 封包，它会返回 RST 封包并将 IPID 再次增加 1。IPID 比起初始响应增加了 2，折表示所有这些时间都发生了，并且被扫描系统的目标端口是开放的。
+
+反之，如果端口是关闭的，会发生不同的系列时间，这仅仅会导致最后的 RST 响应早呢更加 1。如果被扫描系统的目标端口是关闭的，RST 封包会发给僵尸系统，作为初始的伪造的 SYN 封包的响应。由于 RST 封包没有任何回应，僵尸系统的 IPID 值无变化。所以，作为 SYN+ACK 封包的响应，返回给扫描系统的最后的 RST 封包的 IPID 值只会增加 1。
+
+为了简化这个过程，下面的脚本以 Python 编写，它能识别可用僵尸系统，也对扫描目标执行了僵尸扫描。
+
+```py
+#!/usr/bin/python 
+import logging 
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR) 
+from scapy.all import *
+
+def ipid(zombie):   
+    reply1 = sr1(IP(dst=zombie)/TCP(flags="SA"),timeout=2,verbose=0)   
+    send(IP(dst=zombie)/TCP(flags="SA"),verbose=0)   
+    reply2 = sr1(IP(dst=zombie)/TCP(flags="SA"),timeout=2,verbose=0)   
+    if reply2[IP].id == (reply1[IP].id + 2):      
+        print "IPID sequence is incremental and target appears to be        idle.  ZOMBIE LOCATED"      
+        response = raw_input("Do you want to use this zombie to perform        a scan? (Y or N): ")      
+        if response == "Y":         
+            target = raw_input("Enter the IP address of the target           system: ")         
+            zombiescan(target,zombie)   
+    else:      
+        print "Either the IPID sequence is not incremental or the target        is not idle.  NOT A GOOD ZOMBIE"
+
+def zombiescan(target,zombie):   
+    print "\nScanning target " + target + " with zombie " + zombie   print "\n---------Open Ports on Target--------\n"   
+    for port in range(1,100):      
+        try:         
+            start_val = sr1(IP(dst=zombie)/TCP(flags="SA",dport=port),tim          eout=2,verbose=0)         
+            send(IP(src=zombie,dst=target)/TCP(flags="S",dport=port),verbose=0)         
+            end_val = sr1(IP(dst=zombie)/TCP(flags="SA"),timeout=2,verbo          se=0)         
+            if end_val[IP].id == (start_val[IP].id + 2):           
+                print port     
+        except:      
+            pass
+
+print "-----------Zombie Scan Suite------------\n" 
+print "1 - Identify Zombie Host\n" 
+print "2 - Perform Zombie Scan\n" ans = raw_input("Select an Option (1 or 2): ") 
+if ans == "1":   
+    zombie = raw_input("Enter IP address to test IPID sequence: ")   
+    ipid(zombie) 
+else:   
+    if ans == "2":  
+        zombie = raw_input("Enter IP address for zombie system: ")      
+        target = raw_input("Enter IP address for scan target: ")      
+        zombiescan(target,zombie)
+```
+
+在执行脚本过程中，用户会收到量个选项的提示。通过选项选项 1，我们可以扫描或评估目标的 IPID 序列来判断是否主机是个可用的僵尸。假设主机是独立的，并拥有递增的 IPID 序列，主机就可以用作僵尸。并且用户会被询问是否使用僵尸来执行扫描。如果执行了扫描，会对 TCP 端口前 100 个地址的每个地址执行前面讨论的过程。像这样：
+
+```
+root@KaliLinux:~# ./zombie.py 
+-----------Zombie Scan Suite-----------
+
+1 - Identify Zombie Host
+2 - Perform Zombie Scan
+
+Select an Option (1 or 2): 1 
+Enter IP address to test IPID sequence: 172.16.36.134 
+IPID sequence is incremental and target appears to be idle.  ZOMBIE LOCATED 
+Do you want to use this zombie to perform a scan? (Y or N): Y 
+Enter the IP address of the target system: 172.16.36.135
+
+Scanning target 172.16.36.135 with zombie 172.16.36.134
+
+---------Open Ports on Target-------
+
+21 
+22 
+23 
+25 
+53 
+80
+```
+
+### 工作原理
+
+僵尸扫描是个枚举目标系统开放端口的隐秘方式，不需要留下任何交互的痕迹。将伪造请求的组合发给目标系统，以及将正常请求发给僵尸系统，我们就可以通过评估僵尸系统的响应的 IPID 值来映射目标系统的开放端口。
