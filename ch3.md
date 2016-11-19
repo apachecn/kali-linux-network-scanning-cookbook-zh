@@ -2132,6 +2132,7 @@ Usage: dmitry [-winsepfb] [-t 0-9] [-o %host.txt] host
 
 就像输出中所说的那样，`-p`选项用于执行 TCP 端口扫描。为了实现它，我们以被扫描系统的 IP 地址来使用这个选项。Dmitry 拥有 150 个常用的预配置端口，它会扫描这些。在这些端口中，它会展示任何发现的开放端口。考虑下面的例子：
 
+```
 root@KaliLinux:~# dmitry -p 172.16.36.135 
 Deepmagic Information Gathering
 Tool "There be some deep magic going on"
