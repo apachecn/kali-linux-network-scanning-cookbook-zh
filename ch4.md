@@ -214,3 +214,80 @@ TCP Port 6697 - :irc.Metasploitable.LAN NOTICE AUTH :*** Looking up  your hostna
 ### 工作原理
 
 这个秘籍中引入的 Python 脚本的原理是使用套接字库。脚本遍历每个指定的目标端口地址，并尝试与特定端口初始化 TCP 连接。如果建立了连接并接受到来自目标服务的特征，特征之后会打印在脚本的输出中。如果连接不能与远程端口建立，脚本之后会移动到循环汇总的下一个端口地址。与之相似，如果建立了连接，但是没有返回任何特征，连接会被关闭，并且脚本会继续扫描循环内的下一个值。
+
+## 4.3 Dmitry 特征抓取
+
+Dmitry 是个简单但高效的工具，可以用于连接运行在远程端口上的网络服务。这个秘籍真实了如何使用Dmitry 扫描来获取服务特征，以便识别和开放端口相关的服务。
+
+### 准备
+
+为了使用 Dmitry 套接字收集服务特征，在客户端服务连接时，你需要拥有运行开放信息的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
+
+### 工作原理
+
+就像在这本书的端口扫描秘籍中讨论的那样 Dmitry可以用于对 150 个常用服务的端口执行快速的 TCP 端口扫描。这可以使用`-p`选项来执行：
+
+```
+root@KaliLinux:~# dmitry -p 172.16.36.135 
+Deepmagic Information Gathering Tool 
+"There be some deep magic going on"
+
+ERROR: Unable to locate Host Name for 172.16.36.135 
+Continuing with limited modules 
+HostIP:172.16.36.135 HostName:
+
+Gathered TCP Port information for 172.16.36.135 
+--------------------------------
+
+ Port     State
+ 
+21/tcp     open 
+22/tcp     open 
+23/tcp     open 
+25/tcp     open 
+53/tcp     open 
+80/tcp     open 
+111/tcp        open 
+139/tcp        open
+
+Portscan Finished: Scanned 150 ports, 141 ports were in state closed 
+```
+
+这个端口扫描选项是必须的，以便使用 Dmitry 执行特征抓取。也可以在尝试连接这 150 个端口时，让 Dmitry 抓取任何可用的特征。这可以使用`-b`选项和`-p`选项来完成。
+
+```
+root@KaliLinux:~# dmitry -pb 172.16.36.135 
+Deepmagic Information Gathering Tool
+"There be some deep magic going on"
+
+ERROR: Unable to locate 
+Host Name for 172.16.36.135 Continuing with limited modules 
+HostIP:172.16.36.135 HostName:
+
+Gathered TCP Port information for 172.16.36.135 
+--------------------------------
+
+ Port     State
+ 
+21/tcp     open 
+>> 220 (vsFTPd 2.3.4)
+
+22/tcp     open 
+>> SSH-2.0-OpenSSH_4.7p1 Debian-8ubuntu1
+
+23/tcp     open 
+>> ???? ??#??' 
+25/tcp     open 
+>> 220 metasploitable.localdomain ESMTP Postfix (Ubuntu)
+
+53/tcp     open 
+80/tcp     open 
+111/tcp        open 
+139/tcp        open
+
+Portscan Finished: Scanned 150 ports, 141 ports were in state closed
+```
+
+### 工作原理
+
+Dmitry 是个非常简单的命令工具，可以以少量开销执行特征抓取任务。比起指定需要尝试特征抓取的端口，Dmitry 可以自动化这个过程，通过仅仅在小型的预定义和常用端口集合中尝试特征抓取。来自运行在这些端口地址的特征之后会在脚本的终端输出中显示。
