@@ -12,7 +12,7 @@ Netcat 是个多用途的网络工具，可以用于在 Kali 中执行多个信�
 
 ### 准备
 
-为了使用 Netcat 收集服务特征，在客户端服务连接时，你需要拥有运行开放信息的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
+为了使用 Netcat 收集服务特征，在客户端设备连接时，你需要拥有运行开放信息的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
 
 ### 操作步骤
 
@@ -69,7 +69,7 @@ root@KaliLinux:~# nc -vn 172.16.36.135 21
 
 ### 工作原理
 
-Netcat 能够住区这些服务的特征，因为当客户端服务连接它们的时候，服务的配置会自己开房这些信息。自我开房服务的和版本的最佳实践在过去常常使用，来确保客户端俩连接到了它们想连接的目标。由于开发者的安全意识变强，这个实践变得越来越不普遍。无论如何，它仍旧对于不良开发者，或者历史遗留服务十分普遍，它们会以服务特征的形式提供大量信息。
+Netcat 能够住区这些服务的特征，因为当客户端设备连接它们的时候，服务的配置会自己开房这些信息。自我开房服务的和版本的最佳实践在过去常常使用，来确保客户端俩连接到了它们想连接的目标。由于开发者的安全意识变强，这个实践变得越来越不普遍。无论如何，它仍旧对于不良开发者，或者历史遗留服务十分普遍，它们会以服务特征的形式提供大量信息。
 
 ## 4.2 Python 套接字特征抓取
 
@@ -77,7 +77,7 @@ Python 的套接字模块可以用于连接运行在远程端口上的网络服�
 
 ### 准备
 
-为了使用 Python 套接字收集服务特征，在客户端服务连接时，你需要拥有运行开放信息的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
+为了使用 Python 套接字收集服务特征，在客户端设备连接时，你需要拥有运行开放信息的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
 
 此外，这一节也需要编写脚本的更多信息，请参考第一章中的“使用文本编辑器*VIM 和 Nano”。
 
@@ -221,7 +221,7 @@ Dmitry 是个简单但高效的工具，可以用于连接运行在远程端口�
 
 ### 准备
 
-为了使用 Dmitry 收集服务特征，在客户端服务连接时，你需要拥有运行开放信息的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
+为了使用 Dmitry 收集服务特征，在客户端设备连接时，你需要拥有运行开放信息的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
 
 ### 工作原理
 
@@ -298,7 +298,7 @@ Nmap 拥有集成的 Nmap 脚本引擎（NSE），可以用于从运行在远程
 
 ### 准备
 
-为了使用 Nmap NSE 收集服务特征，在客户端服务连接时，你需要拥有运行开放信息的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
+为了使用 Nmap NSE 收集服务特征，在客户端设备连接时，你需要拥有运行开放信息的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
 
 ### 操作步骤
 
@@ -353,7 +353,7 @@ Amap 是个应用映射工具，可以用于从运行在远程端口上的网络
 
 ### 准备
 
-为了使用 Amap 收集服务特征，在客户端服务连接时，你需要拥有运行开放信息的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
+为了使用 Amap 收集服务特征，在客户端设备连接时，你需要拥有运行开放信息的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
 
 ### 操作步骤
 
@@ -434,7 +434,7 @@ Amap 用于完成特征抓取任务的底层原理和其它所讨论的工具一
 
 ### 准备
 
-为了使用 Nmap 执行服务识别，在客户端服务连接时，你需要拥有运行可被探测的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
+为了使用 Nmap 执行服务识别，你需要拥有运行可被探测的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
 
 ### 操作步骤
 
@@ -504,3 +504,102 @@ Nmap done: 1 IP address (1 host up) scanned in 161.49 seconds
 ### 工作原理
 
 Nmap 服务识别会发送一系列复杂的探测请求，之后分析这些请求的响应，尝试基于服务特定的签名和预期行为，来识别服务。此外，你可以看到 Nmap 服务识别输出的底部，Nmap 依赖于用户的反馈，以便确保服务签名保持可靠。
+
+## 4.7 Amap 服务识别
+
+Amap 是 Nmap 的近亲，尤其为识别网络服务而设计。这个秘籍中，我们会探索如何使用 Amap 来执行服务识别。
+
+### 准备
+
+为了使用 Amap 执行服务识别，你需要拥有运行可被探测的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
+
+### 操作步骤
+
+为了在单一端口上执行服务识别，以特定的 IP 地址和端口号来运行 Amap。
+
+```
+root@KaliLinux:~# amap 172.16.36.135 80 
+amap v5.4 (www.thc.org/thc-amap) started at 2013-12-19 05:26:13 -  APPLICATION MAPPING mode
+
+Protocol on 172.16.36.135:80/tcp matches http
+Protocol on 172.16.36.135:80/tcp matches http-apache-2
+
+Unidentified ports: none.
+
+amap v5.4 finished at 2013-12-19 05:26:19
+```
+
+Amap 也可以使用破折号记法扫描端口号码序列。为了这样你工作，以特定 IP 地址和端口范围来执行`amap`，端口范围由范围的第一个端口号，破折号，和范围的最后一个端口号指定。
+
+```
+root@KaliLinux:~# amap 172.16.36.135 20-30 
+amap v5.4 (www.thc.org/thc-amap) started at 2013-12-19 05:28:16 -  APPLICATION MAPPING mode
+
+Protocol on 172.16.36.135:25/tcp matches smtp 
+Protocol on 172.16.36.135:21/tcp matches ftp 
+Protocol on 172.16.36.135:25/tcp matches nntp 
+Protocol on 172.16.36.135:22/tcp matches ssh 
+Protocol on 172.16.36.135:22/tcp matches ssh-openssh 
+Protocol on 172.16.36.135:23/tcp matches telnet
+
+Unidentified ports: 172.16.36.135:20/tcp 172.16.36.135:24/tcp  172.16.36.135:26/tcp 172.16.36.135:27/tcp 172.16.36.135:28/tcp  172.16.36.135:29/tcp 172.16.36.135:30/tcp (total 7).
+
+amap v5.4 finished at 2013-12-19 05:28:17
+
+```
+
+除了识别任何服务，它也能够在输出末尾生产列表，表明任何未识别的端口。这个列表不仅仅包含运行不能识别的服务的开放端口，也包含所有扫描过的关闭端口。但是这个输出仅在扫描了 10 个端口时易于管理，当扫描更多端口范围之后会变得十分麻烦。为了去掉未识别端口的信息，可以使用`-q`选项：
+
+```
+root@KaliLinux:~# amap 172.16.36.135 1-100 -q 
+amap v5.4 (www.thc.org/thc-amap) started at 2013-12-19 05:29:27 -  APPLICATION MAPPING mode
+
+Protocol on 172.16.36.135:21/tcp matches ftp 
+Protocol on 172.16.36.135:25/tcp matches smtp 
+Protocol on 172.16.36.135:22/tcp matches ssh 
+Protocol on 172.16.36.135:22/tcp matches ssh-openssh 
+Protocol on 172.16.36.135:23/tcp matches telnet 
+Protocol on 172.16.36.135:80/tcp matches http 
+Protocol on 172.16.36.135:80/tcp matches http-apache-2 
+Protocol on 172.16.36.135:25/tcp matches nntp 
+Protocol on 172.16.36.135:53/tcp matches dns
+
+amap v5.4 finished at 2013-12-19 05:29:39 
+```
+
+要注意，Amap 会指明常规匹配和更加特定的签名。在这个例子中，运行在端口 22 的服务被识别为匹配 SSH 签名，也匹配更加具体的 OpenSSH 签名。将服务签名和服务特征展示在一起很有意义。特征可以使用`-b`选项，附加到和每个端口相关的信息后面：
+
+```
+root@KaliLinux:~# amap 172.16.36.135 1-100 -qb 
+amap v5.4 (www.thc.org/thc-amap) started at 2013-12-19 05:32:11 -  APPLICATION MAPPING mode
+
+Protocol on 172.16.36.135:21/tcp matches ftp - banner: 220 (vsFTPd  2.3.4)\r\n530 Please login with USER and PASS.\r\n 
+Protocol on 172.16.36.135:22/tcp matches ssh - banner: SSH-2.0- OpenSSH_4.7p1 Debian-8ubuntu1\n 
+Protocol on 172.16.36.135:22/tcp matches ssh-openssh - banner:  SSH-2.0-OpenSSH_4.7p1 Debian-8ubuntu1\n 
+Protocol on 172.16.36.135:25/tcp matches smtp - banner: 220  metasploitable.localdomain ESMTP Postfix (Ubuntu)\r\n221 2.7.0  Error I can break rules, too. Goodbye.\r\n 
+Protocol on 172.16.36.135:23/tcp matches telnet - banner:  #'
+Protocol on 172.16.36.135:80/tcp matches http - banner: HTTP/1.1  200 OK\r\nDate Sat, 26 Oct 2013 014818 GMT\r\nServer Apache/2.2.8  (Ubuntu) DAV/2\r\nX-Powered-By PHP/5.2.4-2ubuntu5.10\r\nContent- Length 891\r\nConnection close\r\nContent-Type  text/html\r\n\r\n<html><head><title>Metasploitable2 -  Linux</title>< 
+Protocol on 172.16.36.135:80/tcp matches http-apache-2 - banner:  HTTP/1.1 200 OK\r\nDate Sat, 26 Oct 2013 014818 GMT\r\nServer  Apache/2.2.8 (Ubuntu) DAV/2\r\nX-Powered-By PHP/5.2.4- 2ubuntu5.10\r\nContent-Length 891\r\nConnection close\r\nContent- Type text/html\r\n\r\n<html><head><title>Metasploitable2 -  Linux</title>< 
+Protocol on 172.16.36.135:53/tcp matches dns - banner: \f
+
+amap v5.4 finished at 2013-12-19 05:32:23 
+```
+
+服务识别会扫描大量端口或者在多有 65536 个端口上执行复杂的扫描，如果每个服务上都探测了每个可能的签名，这样会花费大量时间。为了增加服务识别扫描的速度，我们可以使用`-1`参数，在匹配到特定特性签名之后取消特定服务的分析。
+
+```
+root@KaliLinux:~# amap 172.16.36.135 1-100 -q1 
+amap v5.4 (www.thc.org/thc-amap) started at 2013-12-19 05:33:16 -  APPLICATION MAPPING mode
+
+Protocol on 172.16.36.135:21/tcp matches ftp 
+Protocol on 172.16.36.135:22/tcp matches ssh 
+Protocol on 172.16.36.135:25/tcp matches smtp 
+Protocol on 172.16.36.135:23/tcp matches telnet 
+Protocol on 172.16.36.135:80/tcp matches http 
+Protocol on 172.16.36.135:80/tcp matches http-apache-2 
+Protocol on 172.16.36.135:53/tcp matches dns
+
+amap v5.4 finished at 2013-12-19 05:33:16
+```
+
+Amap 服务识别的底层原理和 Nmap 相似。它注入了一系列探测请求，来尝试请求唯一的响应，它可以用于识别运行在特定端口的软件的版本和服务。但是，要注意的是，虽然 Amap 是个服务识别的替代选项，它并不像 Nmap 那样保持更新和拥有良好维护。所以，Amap 不太可能产生可靠的结果。
