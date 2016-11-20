@@ -221,7 +221,7 @@ Dmitry 是个简单但高效的工具，可以用于连接运行在远程端口�
 
 ### 准备
 
-为了使用 Dmitry 套接字收集服务特征，在客户端服务连接时，你需要拥有运行开放信息的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
+为了使用 Dmitry 收集服务特征，在客户端服务连接时，你需要拥有运行开放信息的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
 
 ### 工作原理
 
@@ -298,7 +298,7 @@ Nmap 拥有集成的 Nmap 脚本引擎（NSE），可以用于从运行在远程
 
 ### 准备
 
-为了使用 Nmap NSE 套接字收集服务特征，在客户端服务连接时，你需要拥有运行开放信息的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
+为了使用 Nmap NSE 收集服务特征，在客户端服务连接时，你需要拥有运行开放信息的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
 
 ### 操作步骤
 
@@ -346,3 +346,84 @@ Nmap done: 1 IP address (1 host up) scanned in 10.26 seconds
 ### 工作原理
 
 另一个用于执行特征抓取的选择就是使用 Nmap NSE 脚本。这可以以两种方式有效简化信息收集过程：首先，由于 Nmap 已经存在于你的工具库中，经常用于目标和服务探索；其次，因为特征抓取过程可以和这些扫描一起执行。 带有附加脚本选项和特征参数的 TCP 连接扫描可以完成服务枚举和特征收集的任务。
+
+## 4.5 Amap 特征抓取
+
+Amap 是个应用映射工具，可以用于从运行在远程端口上的网络设备中读取特征。这个秘籍展示了如何使用 Amap 来获取服务特征，以便识别和目标系统上的开放端口相关的服务。
+
+### 准备
+
+为了使用 Amap 收集服务特征，在客户端服务连接时，你需要拥有运行开放信息的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
+
+### 操作步骤
+
+Amap 中的`-B`选项可以用于以特征模式运行应用。这会使其收集特定 IP 地址和独舞端口的特征。Amap 可以通过指定远程 IP 地址和服务号码来收集单个服务的特征。
+
+```
+root@KaliLinux:~# amap -B 172.16.36.135 21 
+amap v5.4 (www.thc.org/thc-amap) started at 2013-12-19 05:04:58 -  BANNER mode
+
+Banner on 172.16.36.135:21/tcp : 220 (vsFTPd 2.3.4)\r\n
+
+amap v5.4 finished at 2013-12-19 05:04:58 
+```
+
+这个例子中，Amap 从 Metasploitable2 系统`172.16.36.135`的 21 端口抓取了服务特征。这个命令也可以修改来扫描端口的序列范围。为了在所有可能的 TCP 端口上执行扫描，需要奥妙所有可能的端口地址。定义了来源和目标端口地址的 TCP 头部部分是 16 位长，每一位可以为值 1 或者 0。所以一共有`2 **16`或 65536 个 TCP 端口地址。为了扫描所有可能的地址空间，必须提供 1 到 65535 的 范围。
+
+```
+root@KaliLinux:~# amap -B 172.16.36.135 1-65535 
+amap v5.4 (www.thc.org/thc-amap) started at 2014-01-24 15:54:28 -  BANNER mode
+
+Banner on 172.16.36.135:22/tcp : SSH-2.0-OpenSSH_4.7p1 Debian- 8ubuntu1\n 
+Banner on 172.16.36.135:21/tcp : 220 (vsFTPd 2.3.4)\r\n 
+Banner on 172.16.36.135:25/tcp : 220 metasploitable.localdomain  ESMTP Postfix (Ubuntu)\r\n 
+Banner on 172.16.36.135:23/tcp :  #' 
+Banner on 172.16.36.135:512/tcp : Where are you?\n 
+Banner on 172.16.36.135:1524/tcp : root@metasploitable/# 
+Banner on 172.16.36.135:2121/tcp : 220 ProFTPD 1.3.1 Server  (Debian) [ffff172.16.36.135]\r\n 
+Banner on 172.16.36.135:3306/tcp : >\n5.0.51a- 3ubuntu5dJ$t?xdj,fCYxm=)Q=~$5 
+Banner on 172.16.36.135:5900/tcp : RFB 003.003\n 
+Banner on 172.16.36.135:6667/tcp : irc.Metasploitable.LAN NOTICE  AUTH *** Looking up your hostname...\r\n
+Banner on 172.16.36.135:6697/tcp : irc.Metasploitable.LAN NOTICE  AUTH *** Looking up your hostname...\r\n
+
+amap v5.4 finished at 2014-01-24 15:54:35
+```
+
+Amap 所产生的标准输出提供了一些无用和冗余的信息，可以从输出中去掉。尤其是，移除扫描元数据（`Banner`）以及在整个扫描中都相同的 IP 地址会十分有用。为了移除扫描元数据，我们必须用`grep`搜索输出中的某个短语，它对特定输出项目唯一，并且在扫描元数据中不存在。这里，我们可以`grep`搜索单词`on`。
+
+```
+root@KaliLinux:~# amap -B 172.16.36.135 1-65535 | grep "on" 
+Banner on 172.16.36.135:22/tcp : SSH-2.0-OpenSSH_4.7p1 Debian- 8ubuntu1\n 
+Banner on 172.16.36.135:23/tcp :  #' 
+Banner on 172.16.36.135:21/tcp : 220 (vsFTPd 2.3.4)\r\n 
+Banner on 172.16.36.135:25/tcp : 220 metasploitable.localdomain  ESMTP Postfix (Ubuntu)\r\n 
+Banner on 172.16.36.135:512/tcp : Where are you?\n 
+Banner on 172.16.36.135:1524/tcp : root@metasploitable/# 
+Banner on 172.16.36.135:2121/tcp : 220 ProFTPD 1.3.1 Server  (Debian) [ffff172.16.36.135]\r\n 
+Banner on 172.16.36.135:3306/tcp : >\n5.0.51a- 3ubuntu5\tr>}{pDAY,|$948[D~q<u[ 
+Banner on 172.16.36.135:5900/tcp : RFB 003.003\n 
+Banner on 172.16.36.135:6697/tcp : irc.Metasploitable.LAN NOTICE  AUTH *** Looking up your hostname...\r\n 
+Banner on 172.16.36.135:6667/tcp : irc.Metasploitable.LAN NOTICE  AUTH *** Looking up your hostname...\r\n 
+```
+
+我们可以通过使用冒号分隔符来分割每行输出，并只保留字段 2 到 5，将`Banner on`短语，以及重复 IP 地址从输出中移除。
+
+```
+root@KaliLinux:~# amap -B 172.16.36.135 1-65535 | grep "on" | cut  -d ":" -f 2-5 
+21/tcp : 220 (vsFTPd 2.3.4)\r\n
+22/tcp : SSH-2.0-OpenSSH_4.7p1 Debian-8ubuntu1\n 
+1524/tcp : root@metasploitable/# 
+25/tcp : 220 metasploitable.localdomain ESMTP Postfix (Ubuntu)\r\n
+23/tcp :  #' 
+512/tcp : Where are you?\n
+2121/tcp : 220 ProFTPD 1.3.1 Server (Debian)  [ffff172.16.36.135]\r\n
+3306/tcp : >\n5.0.51a-3ubuntu5\nqjAClv0(,v>q?&?J7qW>n 
+5900/tcp : RFB 003.003\n 
+6667/tcp : irc.Metasploitable.LAN NOTICE AUTH *** Looking up your  hostname...\r\n
+6697/tcp : irc.Metasploitable.LAN NOTICE AUTH *** Looking up your  hostname...\r\n
+
+```
+
+### 工作原理
+
+Amap 用于完成特征抓取任务的底层原理和其它所讨论的工具一样。Amap 循环遍历目标端口地址的列表，尝试和每个端口建立连接，之后接收任何返回的通过与服务之间的连接发送的特征。
