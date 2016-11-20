@@ -603,3 +603,235 @@ amap v5.4 finished at 2013-12-19 05:33:16
 ```
 
 Amap 服务识别的底层原理和 Nmap 相似。它注入了一系列探测请求，来尝试请求唯一的响应，它可以用于识别运行在特定端口的软件的版本和服务。但是，要注意的是，虽然 Amap 是个服务识别的替代选项，它并不像 Nmap 那样保持更新和拥有良好维护。所以，Amap 不太可能产生可靠的结果。
+
+## 4.8 Scapy 操作系统识别
+
+由很多技术可以用于尝试识别操作系统或其它设备的指纹。高效的操作系统识别功能非常健壮并且会使用大量的技术作为分析因素。Scapy 可以用于独立分析任何此类因素。这个秘籍展示了如何通过检测返回的 TTL 值，使用 Scapy 执行 OS 识别。
+
+### 准备
+
+为了使用 Scapy 来识别 TTL 响应中的差异，你需要拥有运行 Linux/Unix 操作系统和运行 Windows 操作系统的远程系统。提供的例子使用 Metasploitable2 和 Windows XP。在本地实验环境中配置系统的更多信息请参考第一章的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
+
+此外，这一节也需要编写脚本的更多信息，请参考第一章中的“使用文本编辑器*VIM 和 Nano”。
+
+### 操作步骤
+
+Windows 和 Linux/Unix 操作系统拥有不同的 TTL 默认起始值。这个因素可以用于尝试识别操作系统的指纹。这些值如下：
+
+| 操作系统 | TTL 起始值 |
+| --- | --- |
+| Windows | 128 |
+| Linux/Unix | 64 |
+
+一些基于 Unix 的系统会的 TTL 默认起始值为 225 。但是，出于简单性考虑，我们会使用所提供的值作为这个秘籍的前提。为了分析来自远程系统的响应中的 TTL，我们首先需要构建请求。这里，我们使用 ICMP 回响请求。为了发送 ICMP请求，我们必须首先构建请求的层级。我们需要首先构建的是 IP 层。
+
+```
+root@KaliLinux:~# scapy Welcome to Scapy (2.2.0) >>> linux = "172.16.36.135"
+
+>>> windows = "172.16.36.134" 
+>>> i = IP() 
+>>> i.display() 
+###[ IP ]###  
+    version= 4  
+    ihl= None  
+    tos= 0x0  
+    len= None  
+    id= 1  
+    flags=   
+    frag= 0  
+    ttl= 64  
+    proto= ip  
+    chksum= None  
+    src= 127.0.0.1  
+    dst= 127.0.0.1  
+    \options\ 
+>>> i.dst = linux 
+>>> i.display() 
+###[ IP ]###  
+    version= 4  
+    ihl= None  
+    tos= 0x0  
+    len= None  
+    id= 1  
+    flags=   
+    frag= 0  
+    ttl= 64  
+    proto= ip  
+    chksum= None  
+    src= 172.16.36.180  
+    dst= 172.16.36.135  
+    \options\ 
+```
+
+为了构建请求的 IP 层，我们应该将`IP`对象赋给`i`变量。通过调用`display`函数，我们可以确认对象的属性配置。通常，发送和接受地址都设为回送地址`127.0.0.1`，所以我们需要将其改为目标地址的值，将`i.dst`改为我们希望扫描的地址的字符串值。
+
+通过再次调用`display`函数，我们可以看到不仅仅目标地址被更新，Scapy 也会将源 IP 地址自动更新为何默认接口相关的地址。现在我们成功构造了请求的 IP 层。既然我们构建了请求的 IP 层，我们应该开始构建 ICMP 层了。
+
+```
+>>> ping = ICMP() 
+>>> ping.display() 
+###[ ICMP ]###  
+    type= echo-request  
+    code= 0  
+    chksum= None  
+    id= 0x0  
+    seq= 0x0
+```
+
+为了构建请求的 ICMP 层，我们会使用和 IP 层相同的技巧。在提供的例子中，`ICMP`对象赋给了`ping`遍历。像之前那样，默认的配置可以用过调用`dispaly`函数来确认。通常 ICMP 类型已经设为了`echo-request`。既然我们创建了 IP 和 ICMP 层，我们需要通过叠放这些层来构建请求。
+
+```
+>>> request = (i/ping) 
+>>> request.display() 
+###[ IP ]###  
+    version= 4  
+    ihl= None  
+    tos= 0x0  
+    len= None  
+    id= 1  
+    flags=   
+    frag= 0  
+    ttl= 64  
+    proto= icmp  
+    chksum= None  
+    src= 172.16.36.180  
+    dst= 172.16.36.135  
+    \options\ 
+###[ ICMP ]###     
+    type= echo-request     
+    code= 0     
+    chksum= None     
+    id= 0x0     
+    seq= 0x0
+```
+
+IP 和 ICMP 层可以通过以斜杠分隔遍历来叠放。这些层可以赋给新的变量，它代表我们整个请求。`display`函数之后可以调用来查看请求配置。一旦请求构建完毕，我么可以将其传递给`sr1`函数，以便分析响应。
+
+```
+>>> ans = sr1(request) 
+Begin emission: 
+....................Finished to send 1 packets. 
+....* 
+Received 25 packets, got 1 answers, remaining 0 packets 
+>>> ans.display() 
+###[ IP ]###  
+    version= 4L  
+    ihl= 5L  
+    tos= 0x0  
+    len= 28  
+    id= 64067  
+    flags=   
+    frag= 0L  
+    ttl= 64  
+    proto= icmp  
+    chksum= 0xdf41  
+    src= 172.16.36.135  
+    dst= 172.16.36.180  
+    \options\ 
+###[ ICMP ]###     
+    type= echo-reply     
+    code= 0     
+    chksum= 0xffff     
+    id= 0x0     
+    seq= 0x0 
+###[ Padding ]###        
+    load=  '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\ x00\x00'
+```
+
+相同的请求可以不通过独立构建和叠放每一层来构建。反之，我们可以使用单行的命令，通过直接调用函数并传递合适参数：
+
+```
+>>> ans = sr1(IP(dst=linux)/ICMP()) 
+.Begin emission: 
+...*Finished to send 1 packets.
+
+Received 5 packets, got 1 answers, remaining 0 packets 
+>>> ans 
+<IP  version=4L ihl=5L tos=0x0 len=28 id=64068 flags= frag=0L  ttl=64 proto=icmp chksum=0xdf40 src=172.16.36.135  dst=172.16.36.180 options=[] |<ICMP  type=echo-reply code=0  chksum=0xffff id=0x0 seq=0x0 |<Padding   load='\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00 \x00\x00\x00' |>>> 
+```
+
+要注意来自 Linux 系统的响应的 TTL 值为 64。同一测试可以对 Windows 系统的 IP 地址执行，我们应该注意到响应中 TTL 值的差异。
+
+```
+>>> ans = sr1(IP(dst=windows)/ICMP()) 
+.Begin emission: 
+......Finished to send 1 packets. 
+....* 
+Received 12 packets, got 1 answers, remaining 0 packets 
+>>> ans 
+<IP  version=4L ihl=5L tos=0x0 len=28 id=24714 flags= frag=0L  ttl=128 proto=icmp chksum=0x38fc src=172.16.36.134  dst=172.16.36.180 options=[] |<ICMP  type=echo-reply code=0  chksum=0xffff id=0x0 seq=0x0 |<Padding   load='\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00 \x00\x00\x00' |>>>
+```
+
+要注意由 Windows 系统返回的响应的 TTL 为 128。这个响应可以轻易在 Python 中测试：
+
+
+```
+root@KaliLinux:~# python Python 2.7.3 (default, Jan  2 2013, 16:53:07) 
+[GCC 4.7.2] on linux2 
+Type "help", "copyright", "credits" or "license" for more  information. 
+>>> from scapy.all import *
+WARNING: No route found for IPv6 destination :: (no default  route?) 
+>>> ans = sr1(IP(dst="172.16.36.135")/ICMP()) 
+.Begin emission: 
+............Finished to send 1 packets. 
+....* 
+Received 18 packets, got 1 answers, remaining 0 packets 
+>>> if int(ans[IP].ttl) <= 64: 
+...     print "Host is Linux" 
+... else: 
+...     print "Host is Windows" 
+... Host is Linux 
+>>> ans = sr1(IP(dst="172.16.36.134")/ICMP()) 
+.Begin emission: 
+.......Finished to send 1 packets. 
+....* 
+Received 13 packets, got 1 answers, remaining 0 packets 
+>>> if int(ans[IP].ttl) <= 64: 
+...     print "Host is Linux" 
+... else: 
+...     print "Host is Windows" 
+... Host is Windows 
+```
+
+通过发送相同请求，可以测试 TTL 值的相等性来判断是否小于等于 64。这里，我们可以假设设备运行 Linux/Unix 操作系统。否则，如果值大于 64，我们可以假设设备可能运行 Windows 操作系统。整个过程可以使用 Python 可执行脚本来自动化：
+
+```py
+#!/usr/bin/python
+
+from scapy.all 
+import * import logging 
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR) 
+import sys
+
+if len(sys.argv) != 2:   
+    print "Usage - ./ttl_id.py [IP Address]"   
+    print "Example - ./ttl_id.py 10.0.0.5"
+    print "Example will perform ttl analysis to attempt to determine     whether the system is Windows or Linux/Unix"   
+    sys.exit()
+
+ip = sys.argv[1]
+
+ans = sr1(IP(dst=str(ip))/ICMP(),timeout=1,verbose=0) 
+if ans == None:   
+    print "No response was returned" 
+elif int(ans[IP].ttl) <= 64:   
+    print "Host is Linux/Unix" 
+else:   
+    print "Host is Windows" 
+```
+
+这个 Python 脚本接受单个参数，由被扫描的 IP 地址组成。基于返回的响应中的 TTL，脚本会猜测远程系统。这个脚本可以通过使用`chmod`修改文件许可，并且直接从所在目标调用来执行：
+
+```
+root@KaliLinux:~# chmod 777 ttl_id.py 
+root@KaliLinux:~# ./ttl_id.py 
+Usage - ./ttl_id.py [IP Address] 
+Example - ./ttl_id.py 10.0.0.5 
+Example will perform ttl analysis to attempt to determine whether the  system is Windows or Linux/Unix 
+root@KaliLinux:~# ./ttl_id.py 172.16.36.134 Host is Windows 
+root@KaliLinux:~# ./ttl_id.py 172.16.36.135 Host is Linux/Unix
+```
+
+### 工作原理
+
+Windows 操作系统的网络流量的 TTL 起始值通常为 128，然而 Linux/Unix 操作系统为 64。通过假设不高于 64 应该为其中一种系统，我们可以安全地假设 Windows 系统的回复中 TTL 为 65 到 128，而 Linux/Unix 系统的回复中 TTL 为 1 到 64。当扫描系统和远程目标之间存在设备，并且设备拦截请求并重新封包的时候，这个识别方式就会失效。
