@@ -842,7 +842,7 @@ Windows 操作系统的网络流量的 TTL 起始值通常为 128，然而 Linux
 
 ### 准备
 
-为了使用 Nmap 来识别 TTL 响应中的差异，你需要拥有运行 Linux/Unix 操作系统和运行 Windows 操作系统的远程系统。提供的例子使用 Metasploitable2 和 Windows XP。在本地实验环境中配置系统的更多信息请参考第一章的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
+为了使用 Nmap 来执行操作系统识别，你需要拥有运行 Linux/Unix 操作系统和运行 Windows 操作系统的远程系统。提供的例子使用 Metasploitable2 和 Windows XP。在本地实验环境中配置系统的更多信息请参考第一章的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
 
 ### 操作步骤
 
@@ -886,7 +886,7 @@ xProbe2 是个用于识别远程操作系统的复杂工具。这个秘籍展示
 
 ### 准备
 
-为了使用 xProbe2 来识别 TTL 响应中的差异，你需要拥有运行 Linux/Unix 操作系统和运行 Windows 操作系统的远程系统。提供的例子使用 Metasploitable2 和 Windows XP。在本地实验环境中配置系统的更多信息请参考第一章的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
+为了使用 xProbe2 来执行操作系统识别，你需要拥有运行 Linux/Unix 操作系统和运行 Windows 操作系统的远程系统。提供的例子使用 Metasploitable2 和 Windows XP。在本地实验环境中配置系统的更多信息请参考第一章的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
 
 ### 操作步骤
 
@@ -946,3 +946,95 @@ Xprobe2 v.0.3 Copyright (c) 2002-2005 fyodor@o0o.nu, ofir@sys- security.com, med
 ### 工作原理
 
 xProbe2 服务识别的底层原理和 Nmap 相似。xProbe2 操作系统识别会发送一系列复杂的探测请求，之后分析这些请求的响应，来尝试基于 OS 特定的签名和预期行为识别底层的操作系统。
+
+## 4.11 p0f 被动操作系统识别
+
+p0f 是个用于识别远程操作系统的复杂工具。这个工具不同于其它工具，因为它为被动识别操作系统而构建，并不需要任何与目标系统的直接交互。这个秘籍展示了如何使用 p0f 基于探测响应分析来执行操作系统识别。
+
+### 准备
+
+为了使用 xProbe2 来执行操作系统识别，你需要拥有运行 Linux/Unix 操作系统和运行 Windows 操作系统的远程系统。提供的例子使用 Metasploitable2 和 Windows XP。在本地实验环境中配置系统的更多信息请参考第一章的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
+
+### 操作步骤
+
+如果你直接从命令行执行 p0f，不带任何实现的环境配置，你会注意到它不会提供很多信息，除非你直接和网络上的一些系统交互：
+
+```
+root@KaliLinux:~# p0f 
+p0f - passive os fingerprinting utility, version 2.0.8 (C) M. Zalewski <lcamtuf@dione.cc>, W. Stearns <wstearns@pobox.com> 
+p0f: listening (SYN) on 'eth1', 262 sigs (14 generic, cksum  0F1F5CA2), rule: 'all'. 
+```
+
+信息的缺失是一个证据，表示不像其他工具那样，p0f 并不主动探测设备来尝试判断他们的操作系统。反之，它只会安静地监听。我们可以在这里通过在单独的终端中运行 Nmap 扫描来生成流量，但是这会破坏被动 OS 识别的整个目的。反之，我们需要想出一个方式，将流量重定向到我们的本地界面来分析，以便可以被动分析它们。
+
+Ettercap 为这个目的提供了一个杰出的方案，它提供了毒化 ARP 缓存并创建 MITM 场景的能力。为了让两个系统之间的流量经过我们的本地界面，你需要对每个系统进行 ARP 毒化。
+
+```
+root@KaliLinux:~# ettercap -M arp:remote /172.16.36.1/  /172.16.36.135/ -T -w dump
+
+ettercap NG-0.7.4.2 copyright 2001-2005 ALoR & NaGA
+
+Listening on eth1... (Ethernet)
+
+  eth1 ->  00:0C:29:09:C3:79     172.16.36.180     255.255.255.0
+
+SSL dissection needs a valid 'redir_command_on' script in the  etter.conf file 
+Privileges dropped to UID 65534 GID 65534...
+
+  28 plugins  
+  41 protocol dissectors 
+  56 ports monitored 
+  7587 mac vendor fingerprint
+  1766 tcp OS fingerprint 
+  2183 known services
+
+Scanning for merged targets (2 hosts)...
+
+* |==================================================>| 100.00 %
+
+2 hosts added to the hosts list...
+
+ARP poisoning victims:
+
+ GROUP 1 : 172.16.36.1 00:50:56:C0:00:08
+
+ GROUP 2 : 172.16.36.135 00:0C:29:3D:84:32 
+Starting Unified sniffing...
+
+Text only Interface activated... 
+Hit 'h' for inline help
+
+
+```
+
+在提供的例子中，Ettercap 在命令行中执行。`-M`选项定义了由`arp:remote`参数指定的模式。这表明会执行 ARP 毒化，并且会嗅探来自远程系统的流量。开始和闭合斜杠之间的 IP 地址表示被毒化的系统。`-T`选项表明操作会执行在整个文本界面上，`-w`选项用于指定用于转储流量捕获的文件。一旦你简历了 MITM，你可以在单独的终端中再次执行 p0f。假设两个毒化主机正在通信，你应该看到如下流量：
+
+```
+root@KaliLinux:~# p0f 
+p0f - passive os fingerprinting utility, version 2.0.8 (C) M. Zalewski <lcamtuf@dione.cc>, W. Stearns <wstearns@pobox.com> 
+p0f: listening (SYN) on 'eth1', 262 sigs (14 generic, cksum  0F1F5CA2), rule: 'all'. 
+172.16.36.1:42497 - UNKNOWN [S10:64:1:60:M1460,S,T,N,W7:.:?:?] (up:  700 hrs)
+   -> 172.16.36.135:22 (link: ethernet/modem) 
+172.16.36.1:48172 - UNKNOWN [S10:64:1:60:M1460,S,T,N,W7:.:?:?] (up:  700 hrs)
+   -> 172.16.36.135:22 (link: ethernet/modem) 
+172.16.36.135:55829 - Linux 2.6 (newer, 1) (up: 199 hrs)
+   -> 172.16.36.1:80 (distance 0, link: ethernet/modem) 
+172.16.36.1:42499 - UNKNOWN [S10:64:1:60:M1460,S,T,N,W7:.:?:?] (up:  700 hrs)
+   -> 172.16.36.135:22 (link: ethernet/modem) 
+^C+++ Exiting on signal 2 +++ 
+[+] Average packet ratio: 0.91 per minute.
+```
+
+所有经过 p0f 监听器的封包会标注为 UNKOWN 或者和特定操作系统签名相关。一旦执行了足够的分析，你应该通过输入`q`关闭 Ettercap 文本界面。
+
+```
+Closing text interface...
+
+ARP poisoner deactivated. 
+RE-ARPing the victims... 
+Unified sniffing was stopped.
+```
+
+### 工作原理
+
+ARP 毒化涉及使用无来由的 ARP 响应来欺骗受害者系统，使其将目标 IP 地址与 MITM 系统的 MAC 地址关联。MITM 系统就会收到被毒化系统的流量，并且将其转发给目标接受者。这可以让 MITM 系统能够嗅探所有流量。通过分析流量中的特定行为和签名，p0f 可以识别设备的操作系统，而不需要直接探测响应。
