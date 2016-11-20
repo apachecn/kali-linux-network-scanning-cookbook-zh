@@ -85,7 +85,7 @@ Python 的套接字模块可以用于连接运行在远程端口上的网络服�
 
 使用 Python 交互式解释器，我们可以直接与远程网络设备交互。你可以通过 直接调用 Python 解释器来直接和它交互。这里，你可以导入任何打算使用的特定模块。这里我们导入套接字模块。
 
-``
+```
 root@KaliLinux:~# python 
 Python 2.7.3 (default, Jan  2 2013, 16:53:07) 
 [GCC 4.7.2] on linux2 
@@ -427,3 +427,80 @@ root@KaliLinux:~# amap -B 172.16.36.135 1-65535 | grep "on" | cut  -d ":" -f 2-5
 ### 工作原理
 
 Amap 用于完成特征抓取任务的底层原理和其它所讨论的工具一样。Amap 循环遍历目标端口地址的列表，尝试和每个端口建立连接，之后接收任何返回的通过与服务之间的连接发送的特征。
+
+## 4.6 Nmap 服务识别
+
+虽然特征抓取是非常有利的信息来源，服务特征中的版本发现越来越不重要。Nmap 拥有服务识别功能，不仅仅是简单的特征抓取机制。这个秘籍展示了如何使用 Nmap 基于探测响应的分析执行服务识别。
+
+### 准备
+
+为了使用 Nmap 执行服务识别，在客户端服务连接时，你需要拥有运行可被探测的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
+
+### 操作步骤
+
+为了理解 Nmap 服务是被功能的高效性，我们应该考虑不提供自我开放的服务特征的服务。通过使用 Netcat 连接 Metasploitable2 系统的 TCP 80 端口（这个技巧在这一章的“Netcat 特征抓取”秘籍中讨论过了），我们可以看到，仅仅通过建立 TCP 连接，不能得到任何服务特征。
+
+```
+root@KaliLinux:~# nc -nv 172.16.36.135 80 
+(UNKNOWN) [172.16.36.135] 80 (http) open 
+^C
+```
+
+之后，为了在相同端口上执行 Nmap 扫描，我们可以使用`-sV`选项，并且指定 IP 和端口。
+
+```
+root@KaliLinux:~# nmap 172.16.36.135 -p 80 -sV
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-19 05:20 EST 
+Nmap scan report for 172.16.36.135 
+Host is up (0.00035s latency). 
+PORT   STATE SERVICE VERSION 
+80/tcp open  http    Apache httpd 2.2.8 ((Ubuntu) DAV/2) 
+MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Service detection performed. Please report any incorrect results  at http://nmap.org/submit/ . 
+Nmap done: 1 IP address (1 host up) scanned in 6.18 seconds
+```
+
+你可以看到在这个示例中，Nmap 能够识别该服务，厂商，以及产品的特定版本。这个服务识别功能也可以用于对特定端口列表使用。这在 Nmap 中并不需要指定端口，Nmap 会扫描 1000 个常用端口，并且尝试识别所有识别出来的监听服务。
+
+```
+root@KaliLinux:~# nmap 172.16.36.135 -sV
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-19 05:20 EST 
+Nmap scan report for 172.16.36.135 
+Host is up (0.00032s latency). 
+Not shown: 977 closed ports 
+PORT     STATE SERVICE     VERSION 
+21/tcp   open  ftp         vsftpd 2.3.4 
+22/tcp   open  ssh         OpenSSH 4.7p1 Debian 8ubuntu1 (protocol  2.0) 
+23/tcp   open  telnet      Linux telnetd 
+25/tcp   open  smtp        Postfix smtpd 
+53/tcp   open  domain      ISC BIND 9.4.2 
+80/tcp   open  http        Apache httpd 2.2.8 ((Ubuntu) DAV/2) 
+111/tcp  open  rpcbind     2 (RPC #100000) 
+139/tcp  open  netbios-ssn Samba smbd 3.X (workgroup: WORKGROUP) 
+445/tcp  open  netbios-ssn Samba smbd 3.X (workgroup: WORKGROUP) 
+512/tcp  open  exec        netkit-rsh rexecd 
+513/tcp  open  login? 
+514/tcp  open  tcpwrapped
+1099/tcp open  rmiregistry GNU Classpath grmiregistry 
+1524/tcp open  ingreslock? 
+2049/tcp open  nfs         2-4 (RPC #100003) 
+2121/tcp open  ftp         ProFTPD 1.3.1 
+3306/tcp open  mysql       MySQL 5.0.51a-3ubuntu5 
+5432/tcp open  postgresql  PostgreSQL DB 8.3.0 - 8.3.7 
+5900/tcp open  vnc         VNC (protocol 3.3) 
+6000/tcp open  X11         (access denied) 
+6667/tcp open  irc         Unreal ircd 
+8009/tcp open  ajp13       Apache Jserv (Protocol v1.3) 
+8180/tcp open  http        Apache Tomcat/Coyote JSP engine 1.1 MAC Address: 00:0C:29:3D:84:32 (VMware) 
+Service Info: Hosts:  metasploitable.localdomain, localhost,  irc.Metasploitable.LAN; OSs: Unix, Linux; CPE:  cpe:/o:linux:linux_kernel
+
+Service detection performed. Please report any incorrect results  at http://nmap.org/submit/ . 
+Nmap done: 1 IP address (1 host up) scanned in 161.49 seconds
+```
+
+### 工作原理
+
+Nmap 服务识别会发送一系列复杂的探测请求，之后分析这些请求的响应，尝试基于服务特定的签名和预期行为，来识别服务。此外，你可以看到 Nmap 服务识别输出的底部，Nmap 依赖于用户的反馈，以便确保服务签名保持可靠。
