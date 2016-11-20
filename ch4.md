@@ -842,7 +842,7 @@ Windows 操作系统的网络流量的 TTL 起始值通常为 128，然而 Linux
 
 ### 准备
 
-为了使用 Scapy 来识别 TTL 响应中的差异，你需要拥有运行 Linux/Unix 操作系统和运行 Windows 操作系统的远程系统。提供的例子使用 Metasploitable2 和 Windows XP。在本地实验环境中配置系统的更多信息请参考第一章的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
+为了使用 Nmap 来识别 TTL 响应中的差异，你需要拥有运行 Linux/Unix 操作系统和运行 Windows 操作系统的远程系统。提供的例子使用 Metasploitable2 和 Windows XP。在本地实验环境中配置系统的更多信息请参考第一章的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
 
 ### 操作步骤
 
@@ -879,3 +879,70 @@ Nmap done: 1 IP address (1 host up) scanned in 15.67 seconds
 ### 工作原理
 
 Nmap 操作系统识别会发送一系列复杂的探测请求，之后分析这些请求的响应，来尝试基于 OS 特定的签名和预期行为识别底层的操作系统。此外，你可以在操作系统是被的输出底部看到，Nmap 依赖于用户的反馈，以便确保服务签名保持可靠。
+
+## 4.10 xProbe2 操作系统识别
+
+xProbe2 是个用于识别远程操作系统的复杂工具。这个秘籍展示了如何使用 xProbe2 基于探测响应分析来执行操作系统识别。
+
+### 准备
+
+为了使用 xProbe2 来识别 TTL 响应中的差异，你需要拥有运行 Linux/Unix 操作系统和运行 Windows 操作系统的远程系统。提供的例子使用 Metasploitable2 和 Windows XP。在本地实验环境中配置系统的更多信息请参考第一章的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
+
+### 操作步骤
+
+为了使用 xProbe2 对远程系统上执行操作系统是被，需要将单个参数传递给程序，包含被扫描系统的 IP 地址。
+
+```
+root@KaliLinux:~# xprobe2 172.16.36.135
+Xprobe2 v.0.3 Copyright (c) 2002-2005 fyodor@o0o.nu, ofir@sys- security.com, meder@o0o.nu
+
+[+] Target is 172.16.36.135 
+[+] Loading modules. 
+[+] Following modules are loaded: 
+[x] [1] ping:icmp_ping  -  ICMP echo discovery module 
+[x] [2] ping:tcp_ping  -  TCP-based ping discovery module 
+[x] [3] ping:udp_ping  -  UDP-based ping discovery module 
+[x] [4] infogather:ttl_calc  -  TCP and UDP based TTL distance  calculation 
+[x] [5] infogather:portscan  -  TCP and UDP PortScanner 
+[x] [6] fingerprint:icmp_echo  -  ICMP Echo request fingerprinting  module 
+[x] [7] fingerprint:icmp_tstamp  -  ICMP Timestamp request  fingerprinting module 
+[x] [8] fingerprint:icmp_amask  -  ICMP Address mask request  fingerprinting module 
+[x] [9] fingerprint:icmp_port_unreach  -  ICMP port unreachable  fingerprinting module 
+[x] [10] fingerprint:tcp_hshake  -  TCP Handshake fingerprinting  module 
+[x] [11] fingerprint:tcp_rst  -  TCP RST fingerprinting module 
+[x] [12] fingerprint:smb  -  SMB fingerprinting module 
+[x] [13] fingerprint:snmp  -  SNMPv2c fingerprinting module 
+[+] 13 modules registered 
+[+] Initializing scan engine 
+[+] Running scan engine 
+[-] ping:tcp_ping module: no closed/open TCP ports known on  172.16.36.135. Module test failed 
+[-] ping:udp_ping module: no closed/open UDP ports known on  172.16.36.135. Module test failed
+[-] No distance calculation. 172.16.36.135 appears to be dead or no  ports known 
+[+] Host: 172.16.36.135 is up (Guess probability: 50%) 
+[+] Target: 172.16.36.135 is alive. Round-Trip Time: 0.00112 sec 
+[+] Selected safe Round-Trip Time value is: 0.00225 sec 
+[-] fingerprint:tcp_hshake Module execution aborted (no open TCP ports known) 
+[-] fingerprint:smb need either TCP port 139 or 445 to run 
+[-] fingerprint:snmp: need UDP port 161 open 
+[+] Primary guess: 
+[+] Host 172.16.36.135 Running OS: "Linux Kernel 2.4.22" (Guess  probability: 100%) 
+[+] Other guesses: 
+[+] Host 172.16.36.135 Running OS: "Linux Kernel 2.4.23" (Guess  probability: 100%) 
+[+] Host 172.16.36.135 Running OS: "Linux Kernel 2.4.21" (Guess  probability: 100%) 
+[+] Host 172.16.36.135 Running OS: "Linux Kernel 2.4.20" (Guess  probability: 100%) 
+[+] Host 172.16.36.135 Running OS: "Linux Kernel 2.4.19" (Guess  probability: 100%) 
+[+] Host 172.16.36.135 Running OS: "Linux Kernel 2.4.24" (Guess  probability: 100%) 
+[+] Host 172.16.36.135 Running OS: "Linux Kernel 2.4.25" (Guess  probability: 100%) 
+[+] Host 172.16.36.135 Running OS: "Linux Kernel 2.4.26" (Guess  probability: 100%) 
+[+] Host 172.16.36.135 Running OS: "Linux Kernel 2.4.27" (Guess  probability: 100%) 
+[+] Host 172.16.36.135 Running OS: "Linux Kernel 2.4.28" (Guess  probability: 100%) 
+[+] Cleaning up scan engine 
+[+] Modules deinitialized 
+[+] Execution completed. 
+```
+
+这个工具的输出有些误导性。输出中有好几种不同的 Linux 内核，表明特定操作系统概率为 100%。显然，这是不对的。xProbe2 实际上基于操作系统相关的签名的百分比，这些签名在目标系统上被验证。不幸的是，我们可以在输出中看出，签名对于分辨小版本并不足够细致。无论如何，这个工具在识别目标操作系统中，都是个有帮助的额外资源。
+
+### 工作原理
+
+xProbe2 服务识别的底层原理和 Nmap 相似。xProbe2 操作系统识别会发送一系列复杂的探测请求，之后分析这些请求的响应，来尝试基于 OS 特定的签名和预期行为识别底层的操作系统。
