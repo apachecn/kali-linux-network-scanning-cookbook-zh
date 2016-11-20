@@ -79,7 +79,7 @@ Python 的套接字模块可以用于连接运行在远程端口上的网络服�
 
 为了使用 Python 套接字收集服务特征，在客户端设备连接时，你需要拥有运行开放信息的网络服务的远程系统。提供的例子使用了 Metasploitable2 来执行这个任务。配置 Metasploitable2 的更多信息，请参考第一章的“安装 Metasploitable2”秘籍。
 
-此外，这一节也需要编写脚本的更多信息，请参考第一章中的“使用文本编辑器*VIM 和 Nano”。
+此外，这一节也需要编写脚本的更多信息，请参考第一章中的“使用文本编辑器 VIM 和 Nano”。
 
 ### 操作步骤
 
@@ -612,7 +612,7 @@ Amap 服务识别的底层原理和 Nmap 相似。它注入了一系列探测请
 
 为了使用 Scapy 来识别 TTL 响应中的差异，你需要拥有运行 Linux/Unix 操作系统和运行 Windows 操作系统的远程系统。提供的例子使用 Metasploitable2 和 Windows XP。在本地实验环境中配置系统的更多信息请参考第一章的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
 
-此外，这一节也需要编写脚本的更多信息，请参考第一章中的“使用文本编辑器*VIM 和 Nano”。
+此外，这一节也需要编写脚本的更多信息，请参考第一章中的“使用文本编辑器 VIM 和 Nano”。
 
 ### 操作步骤
 
@@ -835,3 +835,47 @@ root@KaliLinux:~# ./ttl_id.py 172.16.36.135 Host is Linux/Unix
 ### 工作原理
 
 Windows 操作系统的网络流量的 TTL 起始值通常为 128，然而 Linux/Unix 操作系统为 64。通过假设不高于 64 应该为其中一种系统，我们可以安全地假设 Windows 系统的回复中 TTL 为 65 到 128，而 Linux/Unix 系统的回复中 TTL 为 1 到 64。当扫描系统和远程目标之间存在设备，并且设备拦截请求并重新封包的时候，这个识别方式就会失效。
+
+## 4.9 Nmap 操作系统识别
+
+虽然 TTL 分析有助于识别远程操作系统，采用更复杂的解法也是很重要的。Nmap 拥有操作系统识别功能，它不仅仅是简单的 TTL 分析。这个秘籍展示了如何使用 Nmap 执行基于探测响应分析的操作系统识别。
+
+### 准备
+
+为了使用 Scapy 来识别 TTL 响应中的差异，你需要拥有运行 Linux/Unix 操作系统和运行 Windows 操作系统的远程系统。提供的例子使用 Metasploitable2 和 Windows XP。在本地实验环境中配置系统的更多信息请参考第一章的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
+
+### 操作步骤
+
+为了执行 Nmap 操作系统识别，Nmap 应该使用`-o`选项并指定 IP 地址来调用：
+
+```
+root@KaliLinux:~# nmap 172.16.36.134 -O
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-19 10:59 EST
+Nmap scan report for 172.16.36.134 
+Host is up (0.00044s latency). 
+Not shown: 991 closed ports 
+PORT      STATE SERVICE 
+22/tcp    open  ssh 
+135/tcp   open  msrpc 
+139/tcp   open  netbios-ssn 
+445/tcp   open  microsoft-ds 
+4444/tcp  open  krb524 
+8080/tcp  open  http-proxy 
+8081/tcp  open  blackice-icecap 
+15003/tcp open  unknown 
+15004/tcp open  unknown 
+MAC Address: 00:0C:29:18:11:FB (VMware) Device type: general purpose 
+Running: Microsoft Windows XP|2003
+OS CPE: cpe:/o:microsoft:windows_xp::sp2:professional  cpe:/o:microsoft:windows_server_2003 
+OS details: Microsoft Windows XP Professional SP2 or Windows  Server 2003 Network Distance: 1 hop
+
+OS detection performed. Please report any incorrect results at  http://nmap.org/submit/ . 
+Nmap done: 1 IP address (1 host up) scanned in 15.67 seconds 
+```
+
+在这个输出中，Nmap 会表明运行的操作系统或可能提供一列可能运行的操作系统。这里，Nmap 表明远程操作系统是 Windows XP 或者 Server 2003。
+
+### 工作原理
+
+Nmap 操作系统识别会发送一系列复杂的探测请求，之后分析这些请求的响应，来尝试基于 OS 特定的签名和预期行为识别底层的操作系统。此外，你可以在操作系统是被的输出底部看到，Nmap 依赖于用户的反馈，以便确保服务签名保持可靠。
