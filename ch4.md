@@ -1144,3 +1144,455 @@ STRING: "VMware Tools"
 ### 工作原理
 
 不像 Onesixtyone，SNMPwalk 不仅仅能够识别默认 SNMP 团体字符串的使用，也可以利用这个配置来收集大量来自目标系统的信息。这可以通过使用一序列 SNMP GETNEXT 请求，并使用请求来爆破系统的所有可用信息来完成。
+
+## 4.14 Scapy 防火墙识别
+
+通过评估从封包注入返回响应，我们就可以判断远程端口是否被防火墙设备过滤。为了对这个过程如何工作有个彻底的认识，我们可以使用 Scapy 在封包级别执行这个任务。
+
+### 准备
+
+为了使用 Scapy 来执行防火墙识别，你需要运行网络服务的远程系统。此外，你需要实现一些过滤机制。这可以使用独立防火墙设备，或者基于主机的过滤，例如 Windows 防火墙来完成。通过操作防火墙设备的过滤设置，你应该能够修改被注入封包的响应。
+
+### 操作步骤
+
+为了高效判断是否 TCP 端口被过滤，需要向目标端口发送 TCP SYN 和 ACK 封包。基于用于响应这些注入的封包，我们可以判断端口是否多虑。这两个封包的注入可能会产生四种不同的响应组合。我们会讨论每一种场景，它们对于目标端口的过滤来说表示什么，以及如何测试它们。这四个可能的响应组合如下：
+
++   SYN 请求没有响应，ACK 请求收到 RST 响应。
++   SYN 请求收到 SYN+ACK 或者 SYN+RST 响应，ACK 请求没有响应。
++   SYN 请求收到 SYN+ACK 或者 SYN+RST 响应，ACK 请求收到 RST 响应。
++   SYN 和 ACK 请求都没有响应。
+
+| | SYN | ACK | | 
+| --- | --- |
+| 1 | 无响应 | RST | 状态过滤，禁止连入 |
+| 2 | SYN + ACK/RST | 无响应 | 状态过滤，禁止连出 |
+| 3 | SYN + ACK/RST | RST | 无过滤，SYN 收到 ACK 则开放，反之关闭 |
+| 4 | 无响应 | 无响应 | 无状态过滤 |
+
+
+在第一种场景中，我们应该考虑 SYN 请求没有响应，ACK 请求收到 RST 响应的配置。为了测试它，我们首先应该发送 TCP ACK 封包给目标端口。为了发送 TCP ACK 封包给任何给定的端口，我们首先必须构建请求的层级，我们首先需要构建 IP 层：
+
+```
+root@KaliLinux:~# scapy Welcome to Scapy (2.2.0) 
+>>> i = IP() 
+>>> i.display() 
+###[ IP ]###
+    version= 4
+    ihl= None
+    tos= 0x0
+    len= None
+    id= 1
+    flags=
+    frag= 0
+    ttl= 64
+    proto= ip
+    chksum= None
+    src= 127.0.0.1
+    dst= 127.0.0.1
+    \options\ 
+>>> i.dst = "172.16.36.135"
+>>> i.display() 
+###[ IP ]###
+    version= 4
+    ihl= None
+    tos= 0x0
+    len= None
+    id= 1
+    flags=
+    frag= 0
+    ttl= 64
+    proto= ip
+    chksum= None
+    src= 172.16.36.180
+    dst= 172.16.36.135
+    \options\
+```
+
+为了构建请求的 IP 层，我们需要将`IP`对象赋给变量`i`。通过调用`display`函数，我们可以确定对象的属性配置。通常，发送和接受地址都设为回送地址，`127.0.0.1`。这些值可以通过修改目标地址来修改，也就是设置`i.dst`为想要扫描的地址的字符串值。通过再次调用`dislay`函数，我们看到不仅仅更新的目标地址，也自动更新了和默认接口相关的源 IP 地址。现在我们构建了请求的 IP 层，我们可以构建 TCP 层了。
+
+```
+>>> t = TCP() 
+>>> t.display() 
+###[ TCP ]###
+    sport= ftp_data
+    dport= http
+    seq= 0
+    ack= 0
+    dataofs= None
+    reserved= 0
+    flags= S
+    window= 8192
+    chksum= None
+    urgptr= 0
+    options= {} 
+>>> t.dport = 22
+>>> t.flags = 'A' 
+>>> t.display() 
+###[ TCP ]###
+    sport= ftp_data
+    dport= ssh
+    seq= 0
+    ack= 0
+    dataofs= None
+    reserved= 0
+    flags= A
+    window= 8192
+    chksum= None
+    urgptr= 0
+    options= {}
+```
+
+
+为了构建请求的 TCP 层，我们使用和 IP 层相同的技巧。在这个立即中，`TCP`对象赋给了`t`变量。像之前提到的那样，默认的配置可以通过调用`display`函数来确定。这里我们可以看到目标端口的默认值为 HTTP 端口 80。对于我们的首次扫描，我们将 TCP 设置保留默认。现在我们创建了 TCP 和 IP 层，我们需要将它们叠放来构造请求。
+
+```
+>>> request = (i/t) 
+>>> request.display() 
+###[ IP ]###
+    version= 4
+    ihl= None
+    tos= 0x0
+    len= None
+    id= 1
+    flags=
+     frag= 0
+    ttl= 64
+    proto= tcp
+    chksum= None
+    src= 172.16.36.180
+    dst= 172.16.36.135
+    \options\
+###[ TCP ]###
+    sport= ftp_data
+    dport= ssh
+    seq= 0
+    ack= 0
+    dataofs= None
+    reserved= 0
+    flags= A
+    window= 8192
+    chksum= None
+    urgptr= 0
+    options= {}
+```
+
+我们可以通过以斜杠分离变量来叠放 IP 和 TCP 层。这些层面之后赋给了新的变量，它代表整个请求。我们之后可以调用`dispaly`函数来查看请求的配置。一旦构建了请求，可以将其传递给`sr1`函数来分析响应：
+
+```
+>>> response = sr1(request,timeout=1) 
+..Begin emission: 
+.........Finished to send 1 packets. 
+....* 
+Received 16 packets, got 1 answers, remaining 0 packets 
+>>> response.display() 
+###[ IP ]###
+    version= 4L
+    ihl= 5L
+    tos= 0x0
+    len= 40
+    id= 0
+    flags= DF
+    frag= 0L
+    ttl= 63
+    proto= tcp
+    chksum= 0x9974
+    src= 172.16.36.135
+    dst= 172.16.36.180
+    \options\
+###[ TCP ]###
+    sport= ssh
+    dport= ftp_data
+    seq= 0
+    ack= 0
+    dataofs= 5L
+    reserved= 0L
+    flags= R
+    window= 0
+    chksum= 0xe5b
+    urgptr= 0
+    options= {} 
+###[ Padding ]###
+    load= '\x00\x00\x00\x00\x00\x00' 
+```
+
+相同的请求可以不通过构建和堆叠每一层来执行。反之，我们使用单独的一条命令，通过直接调用函数并传递合适的参数：
+
+```
+>>> response =  sr1(IP(dst="172.16.36.135")/TCP(dport=22,flags='A'),timeout=1) 
+..Begin emission: 
+........Finished to send 1 packets. 
+....* 
+Received 15 packets, got 1 answers, remaining 0 packets 
+>>> response 
+<IP  version=4L ihl=5L tos=0x0 len=40 id=0 flags=DF frag=0L ttl=63  proto=tcp chksum=0x9974 src=172.16.36.135 dst=172.16.36.180  options=[] |<TCP  sport=ssh dport=ftp_data seq=0 ack=0 dataofs=5L  reserved=0L flags=R window=0 chksum=0xe5b urgptr=0 |<Padding   load='\x00\x00\x00\x00\x00\x00' |>>>
+```
+
+要注意在这个特定场景中，注入的 ACK 封包的响应是 RST 封包。测试的下一步就是以相同方式注入 SYN 封包。
+
+```
+>>> response =  sr1(IP(dst="172.16.36.135")/TCP(dport=22,flags='S'),timeout=1,verbose =1) 
+Begin emission: 
+Finished to send 1 packets.
+
+Received 9 packets, got 0 answers, remaining 1 packets
+```
+
+以相同方式发送 SYN 请求之后，没有收到任何响应，并且函数在超时时间达到只有断开了连接。这个响应组合表明发生了状态包过滤。套接字通过丢掉 SYN 请求拒绝了所有入境的连接，但是没有过滤 ACK 封包来确保仍旧存在出境连接和持续中的通信。这个响应组合可以在 Python 中测试来确认状态过滤的端口：
+
+```
+root@KaliLinux:~# python 
+Python 2.7.3 (default, Jan  2 2013, 16:53:07) 
+[GCC 4.7.2] on linux2 
+Type "help", "copyright", "credits" or "license" for more  information. 
+>>> from scapy.all import * 
+>>> ACK_response =  sr1(IP(dst="172.16.36.135")/TCP(dport=22,flags='A'),timeout=1,verbose =0) 
+>>> SYN_response =  sr1(IP(dst="172.16.36.135")/TCP(dport=22,flags='S'),timeout=1,verbose =0) 
+>>> if ((ACK_response == None) or (SYN_response == None)) and not  ((ACK_response ==None) and (SYN_response == None)): 
+...     print "Stateful filtering in place" 
+... Stateful filtering in place 
+>>> exit() 
+```
+
+在使用 Scapy 生成每个请求之后，测试可以用于评估这些响应，来判断是否 ACK 或者 SYN（但不是全部）请求接受到了响应。这个测试对于识别该场景以及下一个场景十分高效，其中 SYN 注入而不是 ACK 注入接受到了响应。
+
+SYN 注入收到了 SYN+ACK 或者 RST+ACK 响应，但是 ACK 注入没有收到响应的场景，也表明存在状态过滤。剩余的测试也一样。首先，向目标端口发送 ACK 封包。
+
+```
+>>> response =  sr1(IP(dst="172.16.36.135")/TCP(dport=22,flags='A'),timeout=1,verbose =1) 
+Begin emission: 
+Finished to send 1 packets.
+
+Received 16 packets, got 0 answers, remaining 1 packets
+```
+
+在这个场景中可以执行完全相同的测试，如果两哥注入请求之一收到响应，测试就表明存在状态过滤。
+
+```
+root@KaliLinux:~# python 
+Python 2.7.3 (default, Jan  2 2013, 16:53:07) 
+[GCC 4.7.2] on linux2 
+Type "help", "copyright", "credits" or "license" for more  information. 
+>>> from scapy.all import * 
+>>> ACK_response =  sr1(IP(dst="172.16.36.135")/TCP(dport=22,flags='A'),timeout=1,verbose =0) 
+>>> SYN_response =  sr1(IP(dst="172.16.36.135")/TCP(dport=22,flags='S'),timeout=1,verbose =0) 
+>>> if ((ACK_response == None) or (SYN_response == None)) and not  ((ACK_response ==None) and (SYN_response == None)): 
+...     print "Stateful filtering in place" 
+... Stateful filtering in place 
+>>> exit() 
+```
+
+响应的组合表明，状态过滤执行在 ACK 封包上，任何来自外部的符合上下文的 ACK 封包都会被丢弃。但是，入境连接尝试的响应表明，端口没有完全过滤。
+
+另一个可能的场景就是 SYN 和 ACK 注入都收到了预期响应。这种情况下，没有任何形式的过滤。为了对这种情况执行测试，我们首先执行 ACK 注入，之后分析响应：
+
+```
+>>> response =
+sr1(IP(dst="172.16.36.135")/TCP(dport=22,flags='A'),timeout=1,verbose=1)
+Begin emission: 
+Finished to send 1 packets.
+Received 5 packets, got 1 answers, remaining 0 packets 
+>>> response.display() 
+###[ IP ]###
+    version= 4L
+    ihl= 5L
+    tos= 0x0
+    len= 40
+    id= 0
+    flags= DF
+    frag= 0L
+    ttl= 64
+    proto= tcp
+    chksum= 0x9974
+    src= 172.16.36.135
+    dst= 172.16.36.180
+    \options\
+###[ TCP ]###
+    sport= ssh
+    dport= ftp_data
+    seq= 0
+    ack= 0
+    dataofs= 5L
+    reserved= 0L
+    flags= R
+    window= 0
+    chksum= 0xe5b
+    urgptr= 0
+    options= {} 
+###[ Padding ]###
+    load= '\x00\x00\x00\x00\x00\x00' 
+```
+
+在封包未被过滤的情况下，来路不明的 ACK 封包发送给了目标端口，并应该产生返回的 RST 封包。这个 RST 封包表明，ACK 封包不符合上下文，并且打算断开连接。发送了 ACK 注入之后，我们可以向相同端口发送 SYN 注入。
+
+```
+>>> response =
+sr1(IP(dst="172.16.36.135")/TCP(dport=22,flags='S'),timeout=1,verbose =1) 
+Begin emission: 
+Finished to send 1 packets.
+Received 4 packets, got 1 answers, remaining 0 packets 
+>>> response.display() 
+###[ IP ]###
+    version= 4L
+    ihl= 5L
+    tos= 0x0
+    len= 44
+    id= 0
+    flags= DF
+    frag= 0L
+    ttl= 64
+    proto= tcp
+    chksum= 0x9970
+    src= 172.16.36.135
+    dst= 172.16.36.180
+    \options\ 
+###[ TCP ]###
+    sport= ssh
+    dport= ftp_data
+    seq= 1147718450
+    ack= 1
+    dataofs= 6L
+    reserved= 0L
+    flags= SA
+    window= 5840
+    chksum= 0xd024
+    urgptr= 0
+    options= [('MSS', 1460)] 
+###[ Padding ]###
+    load= '\x00\x00' 
+>>> response[TCP].flags 
+18L 
+>>> int(response[TCP].flags) 
+18 
+```
+
+在端口未过滤并打开的情况中，会返回 SYN+ACK 响应。要注意 TCP`flags`属性的实际值是个`long`变量，值为 18。这个值可以轻易使用`int`函数来转换成`int`变量。这个 18 的值是 TCP 标识位序列的十进制值。SYN 标志的十进制值为 2，而 ACK 标识的十进制值为 16。假设这里没有状态过滤，我们可以通过评估 TCP`flags`值的整数转换，在 Python 中测试端口是否未过滤并打开。
+
+```
+root@KaliLinux:~# python Python 2.7.3 (default, Jan  2 2013, 16:53:07) 
+[GCC 4.7.2] on linux2
+Type "help", "copyright", "credits" or "license" for more  information. 
+>>> from scapy.all import * 
+>>> ACK_response =  sr1(IP(dst="172.16.36.135")/TCP(dport=22,flags='A'),timeout=1,verbose =0) 
+>>> SYN_response =  sr1(IP(dst="172.16.36.135")/TCP(dport=22,flags='S'),timeout=1,verbose =0) 
+>>> if ((ACK_response == None) or (SYN_response == None)) and not  ((ACK_response ==None) and (SYN_response == None)): 
+...     print "Stateful filtering in place" 
+... elif int(SYN_response[TCP].flags) == 18: 
+...     print "Port is unfiltered and open" 
+... elif int(SYN_response[TCP].flags) == 20: 
+...     print "Port is unfiltered and closed" 
+... Port is unfiltered and open 
+>>> exit() 
+```
+
+我们可以执行相似的测试来判断是否端口未过滤并关闭。未过滤的关闭端口会激活 RST 和 ACK 标识。像之前那样，ACK 标识为整数 16，RST 标识为 整数 4。所以，未过滤的关闭端口的 TCP`flags`值的整数转换应该是 20：
+
+```
+root@KaliLinux:~# python Python 2.7.3 (default, Jan  2 2013, 16:53:07) 
+[GCC 4.7.2] on linux2 
+Type "help", "copyright", "credits" or "license" for more  information. 
+>>> from scapy.all import * 
+>>> ACK_response =  sr1(IP(dst="172.16.36.135")/TCP(dport=4444,flags='A'),timeout=1,verbo se=0) 
+>>> SYN_response =  sr1(IP(dst="172.16.36.135")/TCP(dport=4444,flags='S'),timeout=1,verbo se=0) 
+>>> if ((ACK_response == None) or (SYN_response == None)) and not  ((ACK_response ==None) and (SYN_response == None)): 
+...     print "Stateful filtering in place" 
+... elif int(SYN_response[TCP].flags) == 18: 
+...     print "Port is unfiltered and open"
+... elif int(SYN_response[TCP].flags) == 20: 
+...     print "Port is unfiltered and closed" 
+... Port is unfiltered and closed 
+>>> exit() 
+```
+
+最后，我们应该考虑最后一种场景，其中 SYN 或者 ACK 注入都没有收到响应。这种场景中，每个`sr1`的实例都会在超时的时候断开。
+
+```
+>>> response =  sr1(IP(dst="172.16.36.135")/TCP(dport=22,flags='A'),timeout=1,verbose =1) 
+Begin emission: 
+Finished to send 1 packets.
+Received 36 packets, got 0 answers, remaining 1 packets 
+>>> response =  sr1(IP(dst="172.16.36.135")/TCP(dport=22,flags='S'),timeout=1,verbose =1) 
+Begin emission: 
+Finished to send 1 packets.
+Received 18 packets, got 0 answers, remaining 1 packets 
+```
+
+每个注入封包都缺少响应，表明端口存在无状态过滤，仅仅是丢弃所有入境的流量，无论状态是什么。或者这表明远程系统崩溃了。我们的第一想法可能是，可以通过在之前的测试序列的末尾向`else`添加执行流，在 Python 中测试它。理论上，如果任何注入都没有接受到响应，`else`中的操作会执行。简单来说，`else`中的操作会在没有接收到响应的时候执行。
+
+```
+root@KaliLinux:~# python Python 2.7.3 (default, Jan  2 2013, 16:53:07) 
+[GCC 4.7.2] on linux2 
+Type "help", "copyright", "credits" or "license" for more  information. 
+>>> from scapy.all import * 
+>>> ACK_response =  sr1(IP(dst="172.16.36.135")/TCP(dport=4444,flags='A'),timeout=1,verbo se=0)
+>>> SYN_response =  sr1(IP(dst="172.16.36.135")/TCP(dport=4444,flags='S'),timeout=1,verbo se=0) 
+>>> if ((ACK_response == None) or (SYN_response == None)) and not  ((ACK_response ==None) and (SYN_response == None)): 
+...     print "Stateful filtering in place" 
+... elif int(SYN_response[TCP].flags) == 18: 
+...     print "Port is unfiltered and open" 
+... elif int(SYN_response[TCP].flags) == 20: 
+...     print "Port is unfiltered and closed" 
+... else: 
+...     print "Port is either unstatefully filtered or host is down" 
+...
+Traceback (most recent call last):  
+    File "<stdin>", line 3, in <module> 
+TypeError: 'NoneType' object has no attribute '__getitem__'
+```
+
+这意味着理论上可以生效，但是实际上并不工作。操作值为空的变量的时候，Python 实际上会产生错误。为了避免这种问题，首先就需要检测没有收到任何回复的情况。
+
+
+```
+>>> if (ACK_response == None) and (SYN_response == None): 
+...     print "Port is either unstatefully filtered or host is down" 
+... Port is either unstatefully filtered or host is down 
+```
+
+这个完成的测试序列之后可以集成到单个功能性脚本中。这个脚本接受两个参数，包括目标 IP 地址和被测试的端口。之后注入 ACK 和 SYN 封包，如果存在响应，响应会储存用于评估。之后执行四个测试来判断是否端口上存在过滤。一开始，会执行测试来判断是否没有受到任何响应。如果是这样，输出会表示远程主机崩溃了，或者端口存在无状态过滤，并丢弃所有流量。如果接收到了任何请求，会执行测试来判断是否接受到了某个注入的响应，而不是全部。如果是这样，输出会表明端口存在状态过滤。最后如果两个注入都接受到了响应，端口会被识别为物过滤，并且会评估 TCP 标志位来判断端口开放还是关闭。
+
+```py
+#!/usr/bin/python
+
+import sys import logging 
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
+
+from scapy.all import *
+
+if len(sys.argv) != 3:   
+    print "Usage - ./ACK_FW_detect.py [Target-IP] [Target Port]"   
+    print "Example - ./ACK_FW_detect.py 10.0.0.5 443"   
+    print "Example will determine if filtering exists on port 443 of     host 10.0.0.5"   
+    sys.exit()
+
+ip = sys.argv[1] 
+port = int(sys.argv[2])
+
+ACK_response =  sr1(IP(dst=ip)/TCP(dport=port,flags='A'),timeout=1,verbose=0) 
+SYN_response =  sr1(IP(dst=ip)/TCP(dport=port,flags='S'),timeout=1,verbose=0) 
+if (ACK_response == None) and (SYN_response == None):   
+    print "Port is either unstatefully filtered or host is down" 
+elif ((ACK_response == None) or (SYN_response == None)) and not  ((ACK_response ==None) and (SYN_response == None)):   
+    print "Stateful filtering in place" 
+elif int(SYN_response[TCP].flags) == 18:   
+    print "Port is unfiltered and open" 
+elif int(SYN_response[TCP].flags) == 20:   
+    print "Port is unfiltered and closed" 
+else:   
+    print "Unable to determine if the port is filtered"
+```
+
+在本地文件系统创建脚本之后，需要更新文件许可来允许脚本执行。`chmod`可以用于更新这些许可，脚本之后可以通过直接调用并传入预期参数来执行：
+
+```
+root@KaliLinux:~# chmod 777 ACK_FW_detect.py 
+root@KaliLinux:~# ./ACK_FW_detect.py 
+Usage - ./ACK_FW_detect.py [Target-IP] [Target Port] 
+Example - ./ACK_FW_detect.py 10.0.0.5 443 
+Example will determine if filtering exists on port 443 of host  10.0.0.5 
+root@KaliLinux:~# ./ACK_FW_detect.py 172.16.36.135 80 Port is unfiltered and open 
+root@KaliLinux:~# ./ACK_FW_detect.py 172.16.36.134 22 Host is either unstatefully filtered or is down
+```
+
+### 工作原理
+
+SYN 和 ACK TCP 标志在有状态的网络通信中起到关键作用。SYN 请求允许建立新的 TCP 会话，而 ACK 响应用于在关闭之前维持会话。端口响应这些类型的封包之一，但是不响应另一种，就可能存在过滤，它基于会话状态来限制流量。通过识别这种情况，我们就能够推断出端口上存在状态过滤。
