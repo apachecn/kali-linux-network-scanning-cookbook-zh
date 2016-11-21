@@ -1038,3 +1038,27 @@ Unified sniffing was stopped.
 ### 工作原理
 
 ARP 毒化涉及使用无来由的 ARP 响应来欺骗受害者系统，使其将目标 IP 地址与 MITM 系统的 MAC 地址关联。MITM 系统就会收到被毒化系统的流量，并且将其转发给目标接受者。这可以让 MITM 系统能够嗅探所有流量。通过分析流量中的特定行为和签名，p0f 可以识别设备的操作系统，而不需要直接探测响应。
+
+## 4.12 Onesixtyone SNMP 分析
+
+Onesixtyone 是个 SNMP 分析工具，在 UDP 端口上执行 SNMP 操作。它是个非常简单的 snmp 扫描器，对于任何指定的 IP 地址，仅仅请求系统描述。
+
+### 准备
+
+为了使用 Onesixtyone 来执行操作系统识别，你需要拥有开启 SNMP 并可以探测的远程系统。提供的例子使用 Windows XP。配置 Windows 系统的更多信息请参考第一章的“安装 Windows Server”秘籍。
+
+### 操作步骤
+
+这个信息可以用于准确识别目标设备的操作系统指纹。为了使用 Onesixtyone，我们可以将目标 IP 地址和团体字符串作为参数传入：
+
+```
+root@KaliLinux:~# onesixtyone 172.16.36.134 public 
+Scanning 1 hosts, 1 communities 
+172.16.36.134 [public] Hardware: x86 Family 6 Model 58 Stepping 9  AT/AT COMPATIBLE - Software: Windows 2000 Version 5.1 (Build 2600  Uniprocessor Free)
+```
+
+在这个例子中，团体字符串`public`用于查询`172.16.36.134`设备的系统描述。这是多种网络设备所使用的常见字符串之一。正如输出中显式，远程主机使用表示自身的描述字符串回复了查询。
+
+### 工作原理
+
+SNMP 是个用于管理网络设备，以及设备间贡献信息的协议。这个协议的用法通常在企业网络环境中十分必要，但是，系统管理员常常忘记修改默认的团体字符串，它用于在 SNMP 设备之间共享信息。在这个例子中，可以通过适当猜测设备所使用的默认的团体字符串来收集网络设备信息。
