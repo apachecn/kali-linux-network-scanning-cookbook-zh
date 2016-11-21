@@ -1676,3 +1676,112 @@ Nmap done: 1 IP address (1 host up) scanned in 1.77 seconds
 ### 工作原理
 
 除了 Nmap 提供的许多功能，它也可以用于识别防火墙过滤。这意味着 Nmap 通过使用之前在 Scapy 秘籍中讨论的相同技巧，来执行这种防火前格式别。SYN 和 来路不明的 ACK 的组合会发送给目标端口，响应用于分析来判断过滤状态。
+
+## 4.18 Metasploit 防火墙识别
+
+Metasploit 拥有一个扫描辅助模块，可以用于指定多线程网络端口分析，基于 SYN/ACK 探测响应分析，来判断端口是否被过滤。
+
+### 准备
+
+为了使用 Metasploit 来执行防火墙识别，你需要运行网络服务的远程系统。此外，你需要实现一些过滤机制。这可以使用独立防火墙设备，或者基于主机的过滤，例如 Windows 防火墙来完成。通过操作防火墙设备的过滤设置，你应该能够修改被注入封包的响应。
+
+### 操作步骤
+
+为了使用 Metasploit ACK 扫描模块来执行防火墙和过滤识别，你首先必须从 Kali 的终端中启动 MSF 控制台，之后使用`use`命令选项所需的辅助模块。
+
+```
+root@KaliLinux:~# msfconsole 
+# cowsay++ 
+ ____________ 
+< metasploit > 
+ -----------       
+       \   ,__,        
+        \  (oo)____           
+           (__)    )\              
+              ||--|| *
+              
+              
+Using notepad to track pentests? Have Metasploit Pro report on hosts, services, sessions and evidence -- type 'go_pro' to launch it now.
+
+       =[ metasploit v4.6.0-dev [core:4.6 api:1.0] 
++ -- --=[ 1053 exploits - 590 auxiliary - 174 post 
++ -- --=[ 275 payloads - 28 encoders - 8 nops
+
+msf > use auxiliary/scanner/portscan/ack 
+msf  auxiliary(ack) > show options
+
+Module options (auxiliary/scanner/portscan/ack):
+
+   Name       Current Setting  Required  Description   
+   ----       ---------------  --------  ----------   
+   BATCHSIZE  256              yes       The number of hosts to scan  per set   
+   INTERFACE                   no        The name of the interface   
+   PORTS      1-10000          yes       Ports to scan (e.g. 22- 25,80,110-900)   
+   RHOSTS                      yes       The target address range or  CIDR identifier   
+   SNAPLEN    65535            yes       The number of bytes to capture   
+   THREADS    1                yes       The number of concurrent threads   
+   TIMEOUT    500              yes       The reply read timeout in  milliseconds
+```
+
+一旦选择了模块，可以使用`show options`命令来确认或更改扫描配置。这个命令会展示四个列的表格，包括`name`、`current settings`、`required`和`description`。`name`列标出了每个可配置变量的名称。`current settings`列列出了任何给定变量的现有配置。`required`列标出对于任何给定变量，值是否是必须的。`description`列描述了每个变量的功能。任何给定变量的值可以使用`set`命令，并且将新的值作为参数来修改。
+
+```
+msf  auxiliary(ack) > set PORTS 1-100 
+PORTS => 1-100 
+msf  auxiliary(ack) > set RHOSTS 172.16.36.135 
+RHOSTS => 172.16.36.135 
+msf  auxiliary(ack) > set THREADS 25 
+THREADS => 25 
+msf  auxiliary(ack) > show options
+
+Module options (auxiliary/scanner/portscan/ack):
+
+   Name       Current Setting  Required  Description   
+   ----       ---------------  --------  ----------   
+   BATCHSIZE  256              yes       The number of hosts to scan  per set   
+   INTERFACE                   no        The name of the interface   
+   PORTS      1-100            yes       Ports to scan (e.g. 22- 25,80,110-900)   
+   RHOSTS     172.16.36.135    yes       The target address range or  CIDR identifier   
+   SNAPLEN    65535            yes       The number of bytes to capture   
+   THREADS    25               yes       The number of concurrent threads   
+   TIMEOUT    500              yes       The reply read timeout in  milliseconds 
+```
+
+在上面的例子中，`RHOSTS`值修改为我们打算扫描的远程系统的 IP 地址。此外，线程数量修改为 20。`THREADS`的值定义了在后台执行的当前任务数量。确定线程数量涉及到寻找一个平衡，既能提升任务速度，又不会过度消耗系统资源。对于多数系统，20 个线程可以足够快，并且相当合理。修改了必要的变量之后，可以再次使用`show options`命令来验证。一旦所需配置验证完毕，就可以执行扫描了。
+
+```
+msf  auxiliary(ack) > run
+
+[*] Scanned 1 of 1 hosts (100% complete) 
+[*] Auxiliary module execution completed 
+```
+
+这个例子中，唯一提供的输出就是有关扫描的源信息，它显示了被扫描系统的数量，以及模块执行完毕。输出的缺乏是因为，和 SYN 以及 ACK 注入相关的响应从一个端口直接到达另一个端口，因为 Metasploitable2 系统没有任何防火墙。作为替代，如果我们在`packtpub.com`域上执行相同扫描，通过将`RHOSTS `值修改为和它相关的 IP 地址，我们会收到不用的输出。因为这个主机放在防火墙背后，和未过滤端口相关的响应中的变化如下：
+
+```
+msf  auxiliary(ack) > set RHOSTS 83.166.169.228 
+RHOSTS => 83.166.169.228 
+msf  auxiliary(ack) > show options
+
+Module options (auxiliary/scanner/portscan/ack):
+
+   Name       Current Setting  Required  Description   
+   ----       ---------------  --------  ----------   
+   BATCHSIZE  256              yes       The number of hosts to scan  per set   
+   INTERFACE                   no        The name of the interface   
+   PORTS      1-100            yes       Ports to scan (e.g. 22- 25,80,110-900)   
+   RHOSTS     83.166.169.228   yes       The target address range or  CIDR identifier   
+   SNAPLEN    65535            yes       The number of bytes to capture   
+   THREADS    25               yes       The number of concurrent threads   
+   TIMEOUT    500              yes       The reply read timeout in  milliseconds
+   
+msf  auxiliary(ack) > run
+
+[*]  TCP UNFILTERED 83.166.169.228:80 
+[*] Scanned 1 of 1 hosts (100% complete) 
+[*] Auxiliary module execution completed
+```
+
+### 工作原理
+
+Metasploit 拥有一个辅助模块，可以以多种技巧执行防火墙识别，这些技巧之前讨论过。但是，Metasploit 也提供了一些功能来分析防火墙上下文，可以用于其它信息的收集甚至是利用。
