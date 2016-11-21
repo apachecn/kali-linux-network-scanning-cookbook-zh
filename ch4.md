@@ -1596,3 +1596,83 @@ root@KaliLinux:~# ./ACK_FW_detect.py 172.16.36.134 22 Host is either unstatefull
 ### 工作原理
 
 SYN 和 ACK TCP 标志在有状态的网络通信中起到关键作用。SYN 请求允许建立新的 TCP 会话，而 ACK 响应用于在关闭之前维持会话。端口响应这些类型的封包之一，但是不响应另一种，就可能存在过滤，它基于会话状态来限制流量。通过识别这种情况，我们就能够推断出端口上存在状态过滤。
+
+## 4.15 Nmap 防火墙识别
+
+Nmap 拥有简化的防火墙过滤识别功能，基于 ACK 探测响应来识别端口上的过滤。这个功能可以用于测试单一端口或者多个端口序列来判断过滤状态。
+
+### 准备
+
+为了使用 Nmap 来执行防火墙识别，你需要运行网络服务的远程系统。此外，你需要实现一些过滤机制。这可以使用独立防火墙设备，或者基于主机的过滤，例如 Windows 防火墙来完成。通过操作防火墙设备的过滤设置，你应该能够修改被注入封包的响应。
+
+### 操作步骤
+
+为了使用 Nmap 执行防火墙 ACK 扫描，Nmap 应该以指定的 IP 地址，目标端口和`-sA`选项调用。
+
+```
+root@KaliLinux:~# nmap -sA 172.16.36.135 -p 22
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2014-01-24 11:21 EST 
+Nmap scan report for 172.16.36.135 
+Host is up (0.00032s latency). 
+PORT   STATE      SERVICE 
+22/tcp unfiltered ssh 
+MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Nmap done: 1 IP address (1 host up) scanned in 0.05 seconds 
+root@KaliLinux:~# nmap -sA 83.166.169.228 -p 22
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2014-01-24 11:25 EST
+Nmap scan report for packtpub.com (83.166.169.228) 
+Host is up (0.14s latency). 
+PORT   STATE    SERVICE 
+22/tcp filtered ssh
+
+Nmap done: 1 IP address (1 host up) scanned in 2.23 seconds 
+```
+
+通过在本地网络中的 Metasploitable2 系统上执行扫描，流量并不经过防火墙，响应表明 TCP 22 端口是未过滤的。但是，如果我对`packtpub. com`的远程 IP 地址执行相同扫描，端口 22 是过滤器的。通过执行相同扫描，而不指定端口，端口过滤评估可以在 Nmap 的 1000 个常用端口上完成。
+
+```
+root@KaliLinux:~# nmap -sA 172.16.36.135
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2014-01-24 11:21 EST 
+Nmap scan report for 172.16.36.135 
+Host is up (0.00041s latency). All 1000 scanned ports on 172.16.36.135 are unfiltered 
+MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Nmap done: 1 IP address (1 host up) scanned in 0.10 seconds 
+```
+
+对本地网络上的 Metasploit2 系统执行扫描时，由于它没有被任何防火墙保护，结果表明所有端口都是未过滤的。如果我们在`packtpub.com `域内执行相同扫描，所有端口都识别为存在过滤，除了 TCP 端口 80，这是 Web 应用部署的地方。要注意在扫描端口范围的时候，输出只包含未过滤的端口。
+
+```
+root@KaliLinux:~# nmap -sA 83.166.169.228
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2014-01-24 11:25 EST 
+Nmap scan report for packtpub.com (83.166.169.228) 
+Host is up (0.15s latency). 
+Not shown: 999 filtered ports 
+PORT   STATE      SERVICE 
+80/tcp unfiltered http
+
+Nmap done: 1 IP address (1 host up) scanned in 13.02 seconds
+```
+
+为了在所有可能的 TCP 端口上执行扫描，需要奥妙所有可能的端口地址。定义了来源和目标端口地址的 TCP 头部部分是 16 位长，每一位可以为值 1 或者 0。所以一共有`2 **16`或 65536 个 TCP 端口地址。为了扫描所有可能的地址空间，必须提供 1 到 65535 的 范围。
+
+```
+root@KaliLinux:~# nmap -sA 172.16.36.135 -p 1-65535
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2014-01-24 11:21 EST 
+Nmap scan report for 172.16.36.135 
+Host is up (0.00041s latency).
+All 65535 scanned ports on 172.16.36.135 are unfiltered 
+MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Nmap done: 1 IP address (1 host up) scanned in 1.77 seconds
+```
+
+### 工作原理
+
+除了 Nmap 提供的许多功能，它也可以用于识别防火墙过滤。这意味着 Nmap 通过使用之前在 Scapy 秘籍中讨论的相同技巧，来执行这种防火前格式别。SYN 和 来路不明的 ACK 的组合会发送给目标端口，响应用于分析来判断过滤状态。
