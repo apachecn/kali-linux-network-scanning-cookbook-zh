@@ -1062,3 +1062,85 @@ Scanning 1 hosts, 1 communities
 ### 工作原理
 
 SNMP 是个用于管理网络设备，以及设备间贡献信息的协议。这个协议的用法通常在企业网络环境中十分必要，但是，系统管理员常常忘记修改默认的团体字符串，它用于在 SNMP 设备之间共享信息。在这个例子中，可以通过适当猜测设备所使用的默认的团体字符串来收集网络设备信息。
+
+## 4.13 SNMPwalk SNMP 分析
+
+SNMPwalk 是个更加复杂的 SNMP 扫描器，可以通过猜测 SNMP 团体字符串来收集来自设备的大量信息。SNMPwalk 循环遍历一系列请求来收集来自设备的尽可能多的信息。
+
+### 准备
+
+为了使用 SNMPwalk 来执行操作系统识别，你需要拥有开启 SNMP 并可以探测的远程系统。提供的例子使用 Windows XP。配置 Windows 系统的更多信息请参考第一章的“安装 Windows Server”秘籍。
+
+### 操作步骤
+
+为了执行 SNMPwalk，应该将一系列参数传给工具，包括被分析系统的 IP 地址，所使用的团体字符串，以及系统所使用的 SNMP 版本：
+
+
+```
+root@KaliLinux:~# snmpwalk 172.16.36.134 -c public -v 2c 
+iso.3.6.1.2.1.1.1.0 = STRING: "Hardware: x86 Family 6 Model 58  Stepping 9 AT/AT COMPATIBLE - Software: Windows 2000 Version 5.1  (Build 2600 Uniprocessor Free)" 
+iso.3.6.1.2.1.1.2.0 = OID: 
+iso.3.6.1.4.1.311.1.1.3.1.1 
+iso.3.6.1.2.1.1.3.0 = Timeticks: (56225) 0:09:22.25 
+iso.3.6.1.2.1.1.4.0 = "" 
+iso.3.6.1.2.1.1.5.0 = STRING: "DEMO-72E8F41CA4" 
+iso.3.6.1.2.1.1.6.0 = ""
+iso.3.6.1.2.1.1.7.0 = INTEGER: 76 
+iso.3.6.1.2.1.2.1.0 = INTEGER: 2
+iso.3.6.1.2.1.2.2.1.1.1 = INTEGER: 1 
+iso.3.6.1.2.1.2.2.1.1.2 = INTEGER: 2 
+iso.3.6.1.2.1.2.2.1.2.1 = Hex-STRING: 4D 53 20 54 43 50 20 4C 6F 6F  70 62 61 63 6B 20 69 6E 74 65 72 66 61 63 65 00 
+iso.3.6.1.2.1.2.2.1.2.2 = Hex-STRING: 41 4D 44 20 50 43 4E 45 54 20  46 61 6D 69 6C 79
+```
+
+为了对开启 SNMP 的 Windows XP 系统使用 SNMPwalk，我们使用默认的团体字符串`public`，以及版本`2c`。这会生成大量数据，在展示中已经截断。要注意，通常所有被识别的信息都在所查询的 IOD 值后面。这个数据可以通过使用管道连接到`cut`函数来移除标识符。
+
+```
+root@KaliLinux:~# snmpwalk 172.16.36.134 -c public -v 2c | cut -d "="  -f 2 
+STRING: "Hardware: x86 Family 6 Model 58 Stepping 9 AT/AT COMPATIBLE  - Software: Windows 2000 Version 5.1 (Build 2600 Uniprocessor Free)" 
+OID: iso.3.6.1.4.1.311.1.1.3.1.1 
+Timeticks: (75376) 0:12:33.76 
+"" 
+STRING: "DEMO-72E8F41CA4" 
+```
+
+要注意， SNMPwalk 的输出中不仅仅提供了系统标识符。在输出中，可以看到一些明显的信息，另一些信息则是模糊的。但是，通过彻底分析它，你可以收集到目标系统的大量信息：
+
+```
+Hex-STRING: 00 50 56 FF 2A 8E  
+Hex-STRING: 00 0C 29 09 C3 79  
+Hex-STRING: 00 50 56 F0 EE E8  
+IpAddress: 172.16.36.2 
+IpAddress: 172.16.36.180 
+IpAddress: 172.16.36.254 
+```
+
+在输出的一部分中，可以看到十六进制值和 IP 地址的列表。通过参考已知系统的网络接口，我们就可以知道，这些是 ARP 缓存的内容。它表明了储存在设备中的 IP 和 MAC 地址的关联。
+
+```
+STRING: "FreeSSHDService.exe" 
+STRING: "vmtoolsd.exe" 
+STRING: "java.exe" 
+STRING: "postgres.exe" 
+STRING: "java.exe"
+STRING: "java.exe" 
+STRING: "TPAutoConnSvc.exe" 
+STRING: "snmp.exe" 
+STRING: "snmptrap.exe" 
+STRING: "TPAutoConnect.exe" 
+STRING: "alg.exe" 
+STRING: "cmd.exe" 
+STRING: "postgres.exe" 
+STRING: "freeSSHd 1.2.0" 
+STRING: "CesarFTP 0.99g" 
+STRING: "VMware Tools" 
+STRING: "Python 2.7.1" 
+STRING: "WebFldrs XP" 
+STRING: "VMware Tools" 
+```
+ 
+此外，运行进程和安装的应用的列表可以在输出中找到。这个信息在枚举运行在目标系统的服务，以及识别潜在的可利用漏洞时十分有用。
+
+### 工作原理
+
+不像 Onesixtyone，SNMPwalk 不仅仅能够识别默认 SNMP 团体字符串的使用，也可以利用这个配置来收集大量来自目标系统的信息。这可以通过使用一序列 SNMP GETNEXT 请求，并使用请求来爆破系统的所有可用信息来完成。
