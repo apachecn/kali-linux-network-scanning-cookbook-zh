@@ -353,3 +353,71 @@ root@kali:~#
 ### 工作原理
 
 SSH在客户端和服务器之间建立加密的通信通道。 此通道可用于提供远程管理服务，并使用安全复制（SCP）安全地传输文件。
+
+## 1.9 在 Kali 上安装 Nessus
+
+Nessus是一个功能强大的漏洞扫描器，可以安装在Kali Linux平台上。该秘籍讨论了安装，启动和激活Nessus服务的过程。
+
+### 准备
+
+在尝试在 Kali Linux 中安装Nessus漏洞扫描程序之前，你需要获取一个激活代码。此激活代码是获取审计插件所必需的，Nessus用它来评估联网系统。如果你打算在家里或者在你的实验室中使用Nessus，你可以免费获得家庭版密钥。或者，如果你要使用Nessus审计生产系统，则需要获取专业版密钥。在任一情况下，你都可以在`http：// www. tenable.com/products/nessus/nessus-plugins/obtain-an-activation-code`获取此激活码。
+
+### 操作步骤
+
+一旦你获得了你的激活代码，你将需要在`http://www.tenable.com/products/nessus/ select-your-operating-system`下载Nessus安装包。以下屏幕截图显示了Nessus可以运行的各种平台及其相应的安装包的列表：
+
+![](img/1-9-1.jpg)
+
+为已安装的操作系统的体系结构选择适当的安装包。 一旦你选择它，阅读并同意Tenable提供的订阅协议。 然后你的系统将下载安装包。 单击保存文件，然后浏览要保存到的位置：
+
+![](img/1-9-2.jpg)
+
+在提供的示例中，我已将安装程序包保存到根目录。 下载后，你可以从命令行完成安装。 这可以通过 SSH 或通过图形桌面上的终端以下列方式完成：
+
+```
+root@kali:~# ls 
+Desktop  Nessus-5.2.6-debian6_i386.deb 
+root@kali:~# dpkg -i Nessus-5.2.6-debian6_i386.deb 
+Selecting previously unselected package nessus. 
+(Reading database ... 231224 files and directories currently installed.) 
+Unpacking nessus 
+(from Nessus-5.2.6-debian6_i386.deb) ... 
+Setting up nessus (5.2.6) ... 
+nessusd (Nessus) 5.2.6 [build N25116] for Linux 
+Copyright (C) 1998 - 2014 Tenable Network Security, Inc
+
+Processing the Nessus plugins... [##################################################]
+
+All plugins loaded
+
+  - You can start nessusd by typing /etc/init.d/nessusd start 
+  - Then go to https://kali:8834/ to configure your scanner
+  
+root@kali:~# /etc/init.d/nessusd start 
+$Starting Nessus : .
+
+```
+
+使用`ls`命令验证安装包是否在当前目录中。 你应该会在响应中看到它。 然后可以使用Debian软件包管理器（`dpkg`）工具安装服务。 `-i`参数告诉软件包管理器安装指定的软件包。 安装完成后，可以使用命令`/etc/init.d/nessusd start`启动服务。 Nessus完全从Web界面运行，可以从其他机器轻松访问。 如果你想从Kali系统管理Nessus，你可以通过网络浏览器访问它：`https：//127.0.0.1:8834/`。 或者，你可以通过Web浏览器使用Kali Linux虚拟机的IP地址从远程系统（如主机操作系统）访问它。 在提供的示例中，从主机操作系统访问Nessus服务的响应URL是`https://172.16.36.244:8834`：
+
+![](img/1-9-3.jpg)
+
+默认情况下，Nessus服务使用自签名SSL证书，因此你将收到不受信任的连接警告。 对于安全实验室使用目的，你可以忽略此警告并继续。 这可以通过展开` I Understand the Risks `选项来完成，如以下屏幕截图所示：
+
+![](img/1-9-4.jpg)
+
+当你展开了此选项时，你可以单击`Add Exception`按钮。 这会防止每次尝试访问服务时都必须处理此警告。 将服务作为例外添加后，你将看到欢迎屏幕。 从这里，点击` Get Started `按钮。 这会将你带到以下屏幕：
+
+![](img/1-9-5.jpg)
+
+必须设置的第一个配置是管理员的用户帐户和关联的密码。 这些凭据会用于登录和使用Nessus服务。 输入新的用户名和密码后，单击`Next `继续; 您会看到以下屏幕：
+
+![](img/1-9-6.jpg)
+
+然后，你需要输入激活代码。 如果你没有激活码，请参阅本秘籍的准备就绪部分。 最后，输入激活码后，你会返回到登录页面，并要求输入你的用户名和密码。 在此处，你需要输入在安装过程中创建的相同凭据。 以下是之后每次访问URL时，Nessus 会加载的默认屏幕：
+
+![](img/1-9-7.jpg)
+
+### 工作原理
+
+正确安装后，可以从主机系统和安装了图形Web浏览器的所有虚拟机访问Nessus漏洞扫描程序。 这是因为Nessus服务托管在TCP端口8834上，并且主机和所有其他虚拟系统拥有位于相同私有IP空间中的网络接口。
