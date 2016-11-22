@@ -385,5 +385,87 @@ Nessus是最强大和全面的漏洞扫描器之一。 通过定位一个系统�
 
 ### 工作原理
 
-大多数漏洞扫描程序通过评估多个不同的响应，来尝试确定系统是否容易受特定攻击。 在一些情况下，漏洞扫描可以简化为与远程服务建立TCP连接，并且通过自我公开的特征识别已知的漏洞版本。 在其他情况下，可以向远程服务发送一系列复杂的探测和特定请求，来试图请求唯一的响应，该响应对应易受特定攻击的服务。 Nessus同时执行大量测试，来试图为给定目标生成完整的攻击面图像。
+大多数漏洞扫描程序会通过评估多个不同的响应来尝试确定系统是否容易受特定攻击。 一些情况下，漏洞扫描可以简化为与远程服务建立TCP连接并且通过自我公开的特征，识别已知的漏洞版本。 在其他情况下，可以向远程服务发送一系列复杂的特定的探测请求，来试图请求对服务唯一的响应，该服务易受特定的攻击。 Nessus同时执行大量测试，来试图为给定目标生成完整的攻击面图像。
 
+## 5.5 Nessuscmd 命令行扫描
+
+Nessuscmd是Nessus中的命令行工具。 如果你希望将Nessus插件扫描集成到脚本，或重新评估先前发现的漏洞，Nessuscmd可能非常有用。
+
+### 准备
+
+要在Nessus中配置扫描策略，必须首先在Kali Linux渗透测试平台上安装Nessus的功能副本。 因为Nessus是一个需要许可的产品，它不会在Kali默认安装。 有关如何在Kali中安装Nessus的更多信息，请参阅第一章中的“Nessus 安装”秘籍。
+
+### 操作步骤
+
+你需要切换到包含nessuscmd脚本的目录来开始。 然后，通过不提供任何参数来执行脚本，你可以查看包含相应用法和可用选项的输出，如下所示：
+
+```
+root@KaliLinux:~# cd /opt/nessus/bin/ 
+root@KaliLinux:/opt/nessus/bin# ./nessuscmd 
+Error - no target specified 
+nessuscmd (Nessus) 5.2.5 [build N25109] 
+Copyright (C) 1998 - 2014 Tenable Network Security, Inc
+Usage: 
+nessuscmd <option> target... 
+```
+
+为了使用已知的Nessus插件ID对远程主机执行nessuscmd扫描，必须使用`-i`参数，并提供所需的插件ID的值。 出于演示目的，我们使用知名的MS08-067漏洞的插件ID执行扫描，如下所示：
+
+```
+root@KaliLinux:/opt/nessus/bin# ./nessuscmd -i 34477 172.16.36.135 
+Starting nessuscmd 5.2.5 
+Scanning '172.16.36.135'...
+
++ Host 172.16.36.135 is up 
+```
+
+第一次扫描在不容易受到指定插件测试的漏洞攻击的主机上执行。 输出显式主机已启动，但未提供其他输出。 或者，如果系统存在漏洞，会返回对应这个插件的输出，像这样：
+
+```
+root@KaliLinux:/opt/nessus/bin# ./nessuscmd -i 34477 172.16.36.225 
+Starting nessuscmd 5.2.5 
+Scanning '172.16.36.225'...
+
++ Results found on 172.16.36.225 :
+   - Port microsoft-ds (445/tcp)     
+    [!] Plugin ID 34477      
+     |       
+     | Synopsis :      
+     |       
+     |       
+     | Arbitrary code can be executed on the remote host due to a flaw      
+     | in the      
+     | 'Server' service.      
+     |       
+     | Description :      
+     |       
+     |       
+     | The remote host is vulnerable to a buffer overrun in the 'Server'      
+     | service that may allow an attacker to execute arbitrary code on
+     | the      
+     | remote host with the 'System' privileges.      
+     | See also :   
+     |    
+     |    
+     | http://technet.microsoft.com/en-us/security/bulletin/ms08-067    
+     |    
+     |    
+     |    
+     | Solution :   
+     |
+     | Microsoft has released a set of patches for Windows 2000, XP, 2003,    
+     | Vista and 2008.  
+     |     
+     | Risk factor :  
+     |     
+     |    
+     | Critical / CVSS Base Score : 10.0 
+     | (CVSS2#AV:N/AC:L/Au:N/C:C/I:C/A:C)   
+     | CVSS Temporal Score : 8.7   
+     | (CVSS2#E:H/RL:OF/RC:C)   
+     | Public Exploit Available : true
+```
+
+### 工作原理
+
+大多数漏洞扫描程序会通过评估多个不同的响应来尝试确定系统是否容易受特定攻击。 一些情况下，漏洞扫描可以简化为与远程服务建立TCP连接并且通过自我公开的特征，识别已知的漏洞版本。 在其他情况下，可以向远程服务发送一系列复杂的特定的探测请求，来试图请求对服务唯一的响应，该服务易受特定的攻击。Nessuscmd执行相同的测试，或者由常规Nessus接口，给定一个特定的插件ID来执行。 唯一的区别是执行漏洞扫描的方式。
