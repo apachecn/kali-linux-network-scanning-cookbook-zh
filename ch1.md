@@ -279,3 +279,77 @@ Kali Linux 是一个完整的渗透测试工具库，也可用作许多扫描脚
 ### 工作原理
 
 Kali Linux 是一个 Debian Linux 发行版，其中包含大量预安装的第三方渗透工具。 虽然所有这些工具都可以独立获取和安装，Kali Linux 提供的组织和实现使其成为任何渗透测试者的有力工具。
+
+## 1.8 配置和使用 SSH
+
+同时处理多个虚拟机可能会变得乏味，耗时和令人沮丧。 为了减少从一个 VMware 屏幕跳到另一个 VMware 屏幕的需要，并增加虚拟系统之间的通信便利性，在每个虚拟系统上配置和启用SSH非常有帮助。 这个秘籍讨论了如何在每个 Linux 虚拟机上使用 SSH。
+
+### 准备
+
+为了在虚拟机上使用 SSH，必须先在主机系统上安装 SSH 客户端。 SSH 客户端集成到大多数 Linux 和 OS X 系统中，并且可以从终端接口访问。 如果你使用 Windows主机，则需要下载并安装 Windows 终端服务客户端。 一个免费和容易使用的是PuTTY。 PuTTY可以从`http://www.putty.org/`下载。
+
+### 操作步骤
+
+你首先需要在图形界面中直接从终端启用 SSH。 此命令需要在虚拟机客户端中直接运行。 除了 Windows XP 虚拟机，环境中的所有其他虚拟机都是 Linux 发行版，并且应该原生支持 SSH。 启用此功能的步骤在几乎所有 Linux 发行版中都是相同的，如下所示：
+
+![](img/1-8-1.jpg)
+
+`/etc/init.d/ssh start`命令可用于启动服务。 如果你没有使用`root`登录，则需要将`sudo`预置到此命令。 如果接收到错误，则可能是设备上未安装 SSH 守护程序。 如果是这种情况，执行`apt-get install ssh`命令可用于安装 SSH 守护程序。 然后，`ifconfig`可用于获取系统的IP地址，这将用于建立SSH连接。 激活后，现在可以使用 SSH 从主机系统访问 VMware 客户系统。 为此，请最小化虚拟机并打开主机的 SSH 客户端。
+
+如果你使用 Mac OSX 或 Linux 作为主机系统，则可以直接从终端调用客户端。 或者，如果你在 Windows 主机上运行虚拟机，则需要使用终端模拟器，如PuTTY。 在以下示例中，我们通过提供 Kali 虚拟机的 IP 地址建立 SSH 会话：
+
+```
+DEMOSYS:~ jhutchens$ ssh root@172.16.36.244 
+The authenticity of host '172.16.36.244 (172.16.36.244)' can't be established. 
+RSA key fingerprint is c7:13:ed:c4:71:4f:89:53:5b:ee:cf:1f:40:06:d9:11. 
+Are you sure you want to continue connecting (yes/no)? yes 
+Warning: Permanently added '172.16.36.244' (RSA) to the list of known hosts. 
+root@172.16.36.244's password: 
+Linux kali 3.7-trunk-686-pae #1 SMP Debian 3.7.2-0+kali5 i686
+
+The programs included with the Kali GNU/Linux system are free software; the exact distribution terms for each program are described in the individual files in /usr/share/doc/*/copyright.
+
+Kali GNU/Linux comes with ABSOLUTELY NO WARRANTY, to the extent permitted by applicable law. root@kali:~#
+
+```
+
+> 下载示例代码
+
+> 你可以从`http://www.packtpub.com`下载你从帐户中购买的所有Packt图书的示例代码文件。 如果你在其他地方购买此书，可以访问`http：//www.packtpub。 com / support`并注册，以使文件能够直接发送给你。
+
+SSH客户端的适当用法是`ssh [user] @ [IP address]`。 在提供的示例中，SSH 将使用`root`帐户访问 Kali 系统（由提供的 IP 地址标识）。 由于主机未包含在已知主机列表中，因此将首次提示你确认连接。 为此，请输入`yes`。 然后会提示你输入`root`帐户的密码。 输入后，你应该可以通过远程shell访问系统。 相同的过程可以在Windows中使用PuTTY完成。 它可以通过本秘籍的准备就绪部分提供的链接下载。 下载后，打开PuTTY并在“主机名”字段中输入虚拟机的IP地址，并确保 SSH 单选按钮选中，如以下屏幕截图所示：
+
+![](img/1-8-2.jpg)
+
+一旦设置了连接配置，单击`Open `按钮启动会话。 系统会提示我们输入用户名和密码。 我们应该输入我们连接的系统的凭据。 一旦认证过程完成，我们会被远程终端授予系统的访问权限，如以下屏幕截图所示：
+
+![](img/1-8-3.jpg)
+
+通过将公钥提供给远程主机上的`authorized_keys`文件，可以避免每次都进行身份验证。 执行此操作的过程如下：
+
+```
+root@kali:~# ls .ssh 
+ls: cannot access .ssh: No such file or directory 
+root@kali:~# mkdir .ssh 
+root@kali:~# cd .ssh/ r
+oot@kali:~/.ssh# nano authorized_keys
+```
+
+首先，确保`.ssh`隐藏目录已存在于根目录中。 为此，请以目录名称使用`ls`。 如果它不存在，请使用`mkdir`创建目录。 然后，使用`cd`命令将当前位置更改为该目录。 然后，使用Nano或VIM创建名为`authorized_keys`的文件。 如果你不熟悉如何使用这些文本编辑器，请参阅本章中的“使用文本编辑器（VIM和Nano）”秘籍。 在此文件中，你应该粘贴SSH客户端使用的公钥，如下所示：
+
+```
+DEMOSYS:~ jhutchens$ ssh root@172.16.36.244 
+Linux kali 3.7-trunk-686-pae #1 SMP Debian 3.7.2-0+kali5 i686
+
+The programs included with the Kali GNU/Linux system are free software; the exact distribution terms for each program are described in the individual files in /usr/share/doc/*/copyright.
+
+Kali GNU/Linux comes with ABSOLUTELY NO WARRANTY, to the extent permitted by applicable law. 
+Last login: Sat May 10 22:38:31 2014 from 172.16.36.1 
+root@kali:~#
+```
+
+一旦操作完毕，你应该能够连接到SSH，而不必提供验证的密码。
+
+### 工作原理
+
+SSH在客户端和服务器之间建立加密的通信通道。 此通道可用于提供远程管理服务，并使用安全复制（SCP）安全地传输文件。
