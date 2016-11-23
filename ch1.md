@@ -421,3 +421,110 @@ $Starting Nessus : .
 ### 工作原理
 
 正确安装后，可以从主机系统和安装了图形Web浏览器的所有虚拟机访问Nessus漏洞扫描程序。 这是因为Nessus服务托管在TCP端口8834上，并且主机和所有其他虚拟系统拥有位于相同私有IP空间中的网络接口。
+
+## 1.10 在 Kali 上配置 Burp Suite
+
+Burp Suite Proxy是实用而强大的 Web 应用程序审计工具之一。 但是，它不是一个可以轻松地单击来启动的工具。 我们必须修改Burp Suite 应用程序和相关 Web 浏览器中的配置，以确保每个配置与其他设备正确通信。
+
+### 准备
+
+在 Kali Linux 中首次启动 Burp Suite 不需要做任何事情。 免费版是一个集成工具，它已经安装了。 或者，如果你选择使用专业版本，可以在`https://pro.portswigger.net/buy/`购买许可证。 许可证相对便宜，对于额外的功能非常值得。 然而，免费版仍然非常有用，并且为用户免费提供大多数核心功能。
+
+### 操作步骤
+
+Burp Suite 是一个 GUI 工具，需要访问图形桌面才能运行。 因此，Burp Suite 不能通过 SSH 使用。 在 Kali Linux 中有两种方法启动 Burp Suite。 你可以在`Applications `菜单中浏览`Applications | Kali Linux | Top 10 Security Tools | burpsuite`。 或者，你可以通过将其传给 bash 终端中的 Java 解释器来执行它，如下所示：
+
+```
+root@kali:~# java -jar /usr/bin/burpsuite.jar 
+```
+
+加载 Burp Suite 后，请确保代理监听器处于活动状态，并在所需的端口上运行。 提供的示例使用 TCP 端口 8080。 我们可以通过选择`Proxy `选项卡，然后选择下面的`Options `选项卡来验证这些配置，如以下屏幕截图所示：
+
+![](img/1-10-1.jpg)
+
+在这里，你会看到所有代理监听器的列表。 如果没有，请添加一个。 要与 Kali Linux 中的 IceWeasel Web 浏览器一起使用，请将监听器配置为侦听`127.0.0.1`地址上的特定端口。 此外，请确保激活`Running `复选框。 在Burp Suite 中配置监听器之后，还需要修改 IceWeasel 浏览器配置来通过代理转发流量。 为此，请通过单击屏幕顶部的`weasel globe`图标打开 IceWeasel。 打开后，展开`Edit`下拉菜单，然后单击`Preferences `以获取以下屏幕截图：
+
+![](img/1-10-2.jpg)
+
+在 IceWeasel 首选项菜单中，单击顶部的高级`Advanced `选项按钮，然后选择`Network `选项卡。 然后，单击`Connection `标题下的`Settings `按钮。 这将打开`Connection Settings`配置菜单，如以下屏幕截图所示：
+
+![](img/1-10-3.jpg)
+
+默认情况下，代理单选按钮设置为` Use system proxy settings`（使用系统代理设置）。 这需要更改为`Manual proxy configuration`（手动代理配置）。 手动代理配置应与 Burp Suite 代理监听器配置相同。 在所提供的示例中，HTTP 代理地址设置为`127.0.0.1`，端口值设置为 TCP 8080.要捕获其他流量（如 HTTPS），请单击` Use this proxy server for all protocols `（为所有协议使用此代理服务器）复选框。 要验证一切是否正常工作，请尝试使用 IceWeasel 浏览器浏览网站，如以下屏幕截图所示：
+
+![](img/1-10-4.jpg)
+
+
+如果你的配置正确，您应该看到浏览器尝试连接，但没有任何内容将在浏览器中呈现。 这是因为从浏览器发送的请求被代理拦截。 代理拦截是 Burp Suite 中使用的默认配置。 要确认请求已成功捕获，请返回 Burp Suite 代理接口，如图所示：
+
+![](img/1-10-5.jpg)
+
+在这里，你应该看到捕获的请求。 要继续将浏览器用于其他用途，你可以将代理配置更改为被动监听，只需点击` Intercept is on `（拦截开启）按钮就可以将其禁用，或者你可以将浏览器中的代理设置更改回`Use system proxy settings`（使用系统代理设置选项），使用 Burp 时使用手动代理设置。
+
+### 工作原理
+
+在 Burp Suite 中使用的初始配置在 TCP 8080 上创建了一个监听端口。该端口由 Burp Suite 用于拦截所有 Web 流量，并接收由响应返回的入站流量。 通过将 IceWeasel Web 浏览器的代理配置指向此端口，我们让浏览器中生成的所有流量都通过 Burp Suite 代理进行路由。 由于 Burp 提供的功能，我们现在可以随意修改途中的流量。
+
+## 1.11 使用文本编辑器（VIM 和 Nano）
+
+文本编辑器会经常用于创建或修改文件系统中的现有文件。 你应该在任何时候使用文本编辑器在 Kali 中创建自定义脚本。 你还应在任何时候使用文本编辑器修改配置文件或现有渗透测试工具。
+
+### 准备
+
+在 Kali Linux 中使用文本编辑器工具之前，不需要执行其他步骤。 VIM和Nano都是集成工具，已经安装在操作系统中。
+
+### 操作步骤
+
+为了使用 Kali 中的 VIM 文本编辑器创建文件，请使用`vim`命令，并带有要创建或修改的文件名称：
+
+```
+root@kali:~# vim vim_demo.txt 
+```
+
+在提供的示例中，VIM 用于创建名为`vim_demo.txt`的文件。 由于当前没有文件以该名称存在于活动目录中，VIM 自动创建一个新文件并打开一个空文本编辑器。 为了开始在编辑器中输入文本，请按`I`或`Insert `按钮。 然后，开始输入所需的文本，如下所示：
+
+```
+Write to file demonstration with VIM 
+~                                                                       
+~                                                                        
+~                                                                        
+~
+```
+
+在提供的示例中，只有一行添加到文本文件。 但是，在大多数情况下，在创建新文件时，很可能使用多行。 完成后，按`Esc`键退出插入模式并在 VIM 中进入命令模式。 然后，键入`:wq`并按`Enter`键保存。 然后，你可以使用以下 bash 命令验证文件是否存在并验证文件的内容：
+
+```
+root@kali:~# ls 
+Desktop  vim_demo.txt 
+root@kali:~# cat vim_demo.txt 
+Write to file demonstration with VIM 
+```
+
+`ls`命令可以用来查看当前目录的内容。 在这里，你可以看到`vim_demo.txt`文件已创建。 `cat`命令可用于读取和显示文件的内容。 也可以使用的替代文本编辑器是 Nano。 Nano 的基本用法与 VIM 非常相似。 为了开始，请使用`nano`命令，后面带有要创建或修改的文件名称：
+
+```
+root@kali:~# nano nano_demo.txt
+```
+
+在提供的示例中，`nano`用于打开名为`nano_demo.txt`的文件。 由于当前不存在具有该名称的文件，因此将创建一个新文件。 与 VIM 不同，没有单独的命令和写入模式。 相反，写入文件可以自动完成，并且通过按`Ctrl`键和特定的字母键来执行命令。 这些命令的列表可以始终在文本编辑器界面的底部看到：
+
+```
+GNU nano 2.2.6             File: nano_demo.txt                                
+
+Write to file demonstration with Nano
+```
+
+提供的示例向`nano_demo.txt`文件写入了一行。 要关闭编辑器，可以使用`Ctrl + X`，然后会提示您使用`y`保存文件或使用`n`不保存文件。 系统会要求你确认要写入的文件名。 默认情况下，会使用 Nano 执行时提供的名称填充。 但是，可以更改此值，并将文件的内容另存为不同的文件名，如下所示：
+
+```
+root@kali:~# ls 
+Desktop  nano_demo.txt  vim_demo.txt 
+root@kali:~# cat nano_demo.txt 
+Write to file demonstration with Nano 
+```
+
+一旦完成，可以再次使用`ls`和`cat`命令来验证文件是否写入目录，并分别验证文件的内容。 这个秘籍的目的是讨论每个这些编辑器的基本使用来编写和操纵文件。 然而要注意，这些都是非常强大的文本编辑器，有大量其他用于文件编辑的功能。 有关其用法的更多信息，请使用`man`命令访问手册页，后面带有特定文本编辑器的名称。
+
+### 工作原理
+
+文本编辑器只不过是命令行驱动的字符处理工具。 这些工具中的每个及其所有相关功能可以在不使用任何图形界面而执行。 由于没有任何图形组件，这些工具需要非常少的开销，并且极快。 因此，他们能够非常有效并快速修改文件，或通过远程终端接口（如 SSH 或 Telnet）处理文件。
