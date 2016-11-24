@@ -165,3 +165,114 @@ root@KaliLinux:~# cat output.txt
 ### 工作原理
 
 ARPing 是一个工具，用于验证单个主机是否在线。 然而，它的简单用法的使我们很容易操作它在 bash 中按顺序扫描多个主机。 这是通过循环遍历一系列 IP 地址，然后将这些 IP 地址作为参数提供给工具来完成的。
+
+## 2.3 使用 Nmap 探索第二层
+
+网络映射器（Nmap）是 Kali Linux 中最有效和强大的工具之一。 Nmap 可以用于执行大范围的多种扫描技术，并且可高度定制。 这个工具在整本书中会经常使用。 在这个特定的秘籍中，我们将讨论如何使用 Nmap 执行第2层扫描。
+
+### 准备
+
+要使用 ARPing 执行 ARP 发现，你将需要在 LAN 上至少拥有一个响应 ARP 请求的系统。 提供的示例使用 Linux 和 Windows 系统的组合。 有关在本地实验环境中设置系统的更多信息，请参阅第一章入中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
+
+### 操作步骤
+
+Nmap 是使用单个命令执行自动化第二层发现扫描的另一个方案。 `-sn`选项在 Nmap 中称为`ping`扫描。 虽然术语“ping 扫描”自然会导致你认为正在执行第三层发现，但实际上是自适应的。 假设将同一本地子网上的地址指定为参数，可以使用以下命令执行第2层扫描：
+
+```
+root@KaliLinux:~# nmap 172.16.36.135 -sn
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-16 15:40 EST 
+Nmap scan report for 172.16.36.135 
+Host is up (0.00038s latency). 
+MAC Address: 00:0C:29:3D:84:32 (VMware) 
+
+Nmap done: 1 IP address (1 host up) scanned in 0.17 seconds 
+```
+
+此命令向 LAN 广播地址发送 ARP 请求，并根据接收到的响应确定主机是否处于活动状态。 或者，如果对不活动主机的 IP 地址使用该命令，则响应会表示主机关闭：
+
+```
+root@KaliLinux:~# nmap 172.16.36.136 -sn
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-16 15:51 EST 
+Note: Host seems down. If it is really up, but blocking our ping probes, try -Pn 
+
+Nmap done: 1 IP address (0 hosts up) scanned in 0.41 seconds
+```
+
+我们可以修改此命令，来使用破折号符号对一系列顺序 IP 地址执行第2层发现。 要扫描完整的`/ 24`范围，可以使用`0-255`：
+
+```
+root@KaliLinux:~# nmap 172.16.36.0-255 -sn
+Starting 
+Nmap 6.25 ( http://nmap.org ) at 2013-12-11 05:35 EST 
+Nmap scan report for 172.16.36.1 
+Host is up (0.00027s latency). 
+MAC Address: 00:50:56:C0:00:08 (VMware) 
+Nmap scan report for 172.16.36.2 
+Host is up (0.00032s latency). 
+MAC Address: 00:50:56:FF:2A:8E (VMware) 
+Nmap scan report for 172.16.36.132 
+Host is up. 
+Nmap scan report for 172.16.36.135 
+Host is up (0.00051s latency). 
+MAC Address: 00:0C:29:3D:84:32 (VMware) 
+Nmap scan report for 172.16.36.200 
+Host is up (0.00026s latency). 
+MAC Address: 00:0C:29:23:71:62 (VMware) 
+Nmap scan report for 172.16.36.254 
+Host is up (0.00015s latency). 
+MAC Address: 00:50:56:EA:54:3A (VMware) 
+
+Nmap done: 256 IP addresses (6 hosts up) scanned in 3.22 seconds 
+```
+
+使用此命令将向该范围内的所有主机发送广播 ARP 请求，并确定每个主动响应的主机。 也可以使用`-iL`选项对 IP 地址的输入列表执行此扫描：
+
+```
+root@KaliLinux:~# nmap -iL iplist.txt -sn
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-16 16:07 EST 
+Nmap scan report for 172.16.36.2 
+Host is up (0.00026s latency). 
+MAC Address: 00:50:56:FF:2A:8E (VMware) 
+Nmap scan report for 172.16.36.1
+
+Host is up (0.00021s latency). 
+MAC Address: 00:50:56:C0:00:08 (VMware) 
+Nmap scan report for 172.16.36.132 
+Host is up (0.00031s latency). 
+MAC Address: 00:0C:29:65:FC:D2 (VMware) 
+Nmap scan report for 172.16.36.135 
+Host is up (0.00014s latency). 
+MAC Address: 00:0C:29:3D:84:32 (VMware) 
+Nmap scan report for 172.16.36.180 
+Host is up. 
+Nmap scan report for 172.16.36.254 
+Host is up (0.00024s latency). 
+MAC Address: 00:50:56:EF:B9:9C (VMware) 
+
+Nmap done: 8 IP addresses (6 hosts up) scanned in 0.41 seconds
+```
+
+当使用`-sn`选项时，Nmap 将首先尝试使用第2层 ARP 请求定位主机，并且如果主机不位于 LAN 上，它将仅使用第3层 ICMP 请求。 注意对本地网络（在`172.16.36.0/24`专用范围）上的主机执行的 Nmap ping 扫描才能返回 MAC 地址。 这是因为 MAC 地址由来自主机的 ARP 响应返回。 但是，如果对不同 LAN 上的远程主机执行相同的 Nmap ping 扫描，则响应不会包括系统的 MAC 地址。
+
+
+```
+root@KaliLinux:~# nmap -sn 74.125.21.0-255
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-11 05:42 EST 
+Nmap scan report for 74.125.21.0 
+Host is up (0.0024s latency). 
+Nmap scan report for 74.125.21.1 
+Host is up (0.00017s latency). 
+Nmap scan report for 74.125.21.2 
+Host is up (0.00028s latency). 
+Nmap scan report for 74.125.21.3 
+Host is up (0.00017s latency).
+```
+
+当对远程网络范围（公共范围`74.125.21.0/24`）执行时，你可以看到，使用了第三层发现，因为没有返回 MAC 地址。 这表明，Nmap 会尽可能自动利用第二层发现的速度，但在必要时，它将使用可路由的 ICMP 请求，在第三层上发现远程主机。如果你使用 Wireshark 监控流量，而 Nmap 对本地网络上的主机执行 ping 扫描。 在以下屏幕截图中，你可以看到 Nmap 利用 ARP 请求来识别本地段范围内的主机：
+
+![](img/2-3-1.jpg)
+
+### 工作原理
+
+Nmap 已经高度功能化，需要很少甚至无需调整就可以运行所需的扫描。 底层的原理是一样的。 Nmap 将 ARP 请求发送到一系列 IP 地址的广播地址，并通过标记响应来识别活动主机。 但是，由于此功能已集成到 Nmap 中，因此可以通过提供适当的参数来执行。
