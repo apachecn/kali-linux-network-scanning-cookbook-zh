@@ -947,3 +947,59 @@ tcpdump: listening on eth0, link-type EN10MB (Ethernet), capture size 96 bytes
 +   来自所使用的网络功能的响应应该显着大于用于请求它的请求。
 
 SNMP 放大攻击的效率取决于 SNMP 查询的响应大小。 另外，可以通过使用多个 SNMP 服务器来增加攻击的威力。
+
+## 6.6 NTP 放大 DoS 攻击
+
+NTP 放大 DoS 攻击利用响应远程 monlist 请求的网络时间协议（NTP）服务器。 monlist 函数返回与服务器交互的所有设备的列表，在某些情况下最多达 600 个列表。 攻击者可以伪造来自目标 IP 地址的请求，并且漏洞服务器将为每个发送的请求返回非常大的响应。 在写这本书的时候，这仍然是一个常见的威胁，目前正在大规模使用。 因此，我将仅演示如何测试 NTP 服务器，以确定它们是否将响应远程 monlist 请求。 补丁程序可用于大多数 NTP 服务来解决此问题，并且任何有存在漏洞的设备应该修复或下线。
+
+### 准备
+
+为了确定是否可以利用 NTP 服务器执行 NTP 放大攻击，你需要有启用 NTP 的设备。 在提供的示例中，Ubuntu 用于托管 NTP 服务。 有关设置 Ubuntu 的更多信息，请参阅本书第一章中的“安装 Ubuntu Server”秘籍。
+
+### 操作步骤
+
+为了确定远程服务器是否运行 NTP 服务，Nmap 可用于快速扫描 UDP 端口 123。 `-sU`选项可用于指定 UDP，然后可使用`-p`选项来指定端口 ：
+
+```
+root@KaliLinux:~# nmap -sU 172.16.36.224 -p 123
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2014-02-24 18:12 EST 
+Nmap scan report for 172.16.36.224 
+Host is up (0.00068s latency). 
+PORT    STATE SERVICE 
+123/udp open  ntp 
+MAC Address: 00:0C:29:09:C3:79 (VMware)
+
+Nmap done: 1 IP address (1 host up) scanned in 0.10 seconds
+```
+
+如果远程服务器上运行 NTP 服务，则扫描应返回打开状态。 Kali Linux 上默认安装的另一个工具可用于确定 NTP 服务是否可用于放大攻击。 NTPDC 工具可用于尝试对远程服务执行 monlist 命令：
+
+```
+root@KaliLinux:~# ntpdc -n -c monlist 172.16.36.224 
+172.16.36.224: timed out, nothing received 
+***Request timed out
+```
+
+理想情况下，我们希望看到的是没有响应返回。 在所提供的第一个示例中，请求超时，并且未接收到输出。 这表明服务器不易受攻击，并且 monlist 命令只能在本地执行：
+
+```
+root@KaliLinux:~# ntpdc -c monlist 172.16.36.3 
+remote address          port local address      count m ver rstr avgint  lstint
+========================================================================= ====== 
+host.crossing.com        123 172.16.36.3           18 4 4    1d0     35       1 
+grub.ca.us.roller.o      123 172.16.36.3           17 4 4    1d0     37      35 
+va-time.utility.o        123 172.16.36.3           17 4 4    1d0     37      59 
+cheezpuff.meatball.n     123 172.16.36.3           17 4 4    1d0     38      62 
+pwnbox.lizard.com        123 172.16.36.3           35 4 4    5d0     65      51 
+```
+
+或者，如果返回了一系列主机和连接元数据，则远程服务器可能能够用于放大攻击。 对于与服务器交互的每个新主机，会在此列表中添加一个新条目，响应的大小以及可能的载荷会变得更大。
+
+
+放大攻击的原理是利用第三方设备，使网络流量压倒目标。 对于多数放大攻击，必须满足两个条件：
+
++   用于执行攻击的协议不验证请求源
++   来自所使用的网络功能的响应应该显着大于用于请求它的请求。
+
+NTP  放大攻击的效率取决于 NTP  查询的响应大小。 另外，可以通过使用多个 NTP  服务器来增加攻击的威力。
