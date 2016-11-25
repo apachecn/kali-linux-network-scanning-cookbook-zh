@@ -6,6 +6,273 @@
 
 > 协议：[CC BY-NC-SA 4.0](http://creativecommons.org/licenses/by-nc-sa/4.0/)
 
+## 2.1 使用 Scapy 探索第二层
+
+Scapy 是一个强大的交互工具，可用于捕获，分析，操作甚至创建协议兼容的网络流量，然后注入到网络中。 Scapy 也是一个可以在 Python 中使用的库，从而提供创建高效的脚本，来执行网络流量处理和操作的函数。 这个特定的秘籍演示了如何使用 Scapy 执行 ARP 发现，以及如何使用P ython 和 Scapy 创建脚本来简化第二层发现过程。
+
+### 准备
+
+要使用 Scapy 执行 ARP 发现，你需要在 LAN 上至少拥有一个响应 ARP 请求的系统。 提供的示例使用 Linux 和 Windows 系统的组合。 有关在本地实验环境中设置系统的更多信息，请参阅第一章入中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
+
+此外，本节需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。 有关编写脚本的更多信息，请参阅第一章入门中的“使用文本编辑器（VIM 和 Nano）”秘籍。
+
+### 操作步骤
+
+为了了解 ARP 发现的工作原理，我们使用 Scapy 来开发自定义数据包，这允让我们能够使用 ARP 识别 LAN 上的主机。 要在 Kali Linux 中开始使用 Scapy，请从终端输入`scapy`命令。 然后，你可以使用`display()`函数以下列方式查看在 Scapy 中创建的任何 ARP 对象的默认配置：
+
+```
+root@KaliLinux:~# scapy Welcome to Scapy (2.2.0) 
+>>> ARP().display() 
+###[ ARP ]###
+  hwtype= 0x1
+  ptype= 0x800
+  hwlen= 6
+  plen= 4
+  op= who-has
+  hwsrc= 00:0c:29:fd:01:05
+  psrc= 172.16.36.232
+  hwdst= 00:00:00:00:00:00
+  pdst= 0.0.0.0 
+```
+
+请注意，IP 和 MAC 源地址都会自动配置为与运行 Scapy 的主机相关的值。 除非你需要伪造源地址，否则对于任何 Scapy 对象永远不必更改这些值。 ARP 的默认操作码值被自动设置为`who-has`，表明该封包用于请求 IP 和 MAC 关联。 在这种情况下，我们需要提供的唯一值是目标 IP 地址。 为此，我们可以使用 ARP 函数创建一个对象，将其赋给一个变量。 变量的名称是无所谓（在提供的示例中，使用变量名称`arp_request`）。 看看下面的命令：
+
+```
+>>> arp_request = ARP() 
+>>> arp_request.pdst = "172.16.36.135" 
+>>> arp_request.display() 
+###[ ARP ]###
+  hwtype= 0x1
+  ptype= 0x800
+  hwlen= 6
+  plen= 4
+  op= who-has
+  hwsrc= 00:0c:29:65:fc:d2
+  psrc= 172.16.36.132
+  hwdst= 00:00:00:00:00:00
+  pdst= 172.16.36.135
+```
+
+注意，`display()`函数可以在新创建的 ARP 对象上调用，来验证配置值是否已更新。 对于此练习，请使用与实验环境网络中的活动计算机对应的目标 IP 地址。 然后`sr1()`函数可以用于发送请求并返回第一个响应：
+
+```
+>>> sr1(arp_request) 
+Begin emission: 
+......................................*
+Finished to send 1 packets.
+
+Received 39 packets, got 1 answers, remaining 0 packets 
+<ARP  hwtype=0x1 ptype=0x800 hwlen=6 plen=4 op=is-at hwsrc=00:0c:29:3d:84:32 psrc=172.16.36.135 hwdst=00:0c:29:65:fc:d2 pdst=172.16.36.132 |<Padding  load='\x00\x00\x00\x00\x00\x00\x00\x00\x00\ x00\x00\x00\x00\x00\x00\x00\x00\x00' |>> 
+```
+
+或者，模可以通过直接调用该函数，并将任何特殊配置作为参数传递给它，来执行相同的任务，如以下命令所示。 这可以避免使用不必要的变量的混乱，并且还可以在单行代码中完成整个任务：
+
+```
+>>> sr1(ARP(pdst="172.16.36.135")) 
+Begin emission: .........................*
+Finished to send 1 packets.
+
+Received 26 packets, got 1 answers, remaining 0 packets 
+<ARP  hwtype=0x1 ptype=0x800 hwlen=6 plen=4 op=is-at hwsrc=00:0c:29:3d:84:32 psrc=172.16.36.135 hwdst=00:0c:29:65:fc:d2 pdst=172.16.36.132 |<Padding  load='\x00\x00\x00\x00\x00\x00\x00\x00\x00\ x00\x00\x00\x00\x00\x00\x00\x00\x00' |>> 
+```
+
+注意，在这些情况的每一个中，返回响应表明，`172.16.36.135`的 IP 地址的 MAC 地址为`00：0C：29：3D：84：32`。 如果执行相同的任务，但是目标 IP 地址不对应实验环境网络上的活动主机，则不会收到任何响应，并且该功能将无限继续分析本地接口上传入的流量 。
+
+你可以使用`Ctrl + C`强制停止该函数。或者，你可以指定一个`timeout`参数来避免此问题。 当 Scapy 在P ython 脚本中使用时，超时的使用将变得至关重要。 要使用超时，应向发送/接收函数提供一个附加参数，指定等待传入响应的秒数：
+
+```
+>>> arp_request.pdst = "172.16.36.134" 
+>>> sr1(arp_request, timeout=1) 
+Begin emission: 
+......................................................................... ............
+Finished to send 1 packets. 
+................................. ......................................................................... ........................................ 
+Received 3285 packets, got 0 answers, remaining 1 packets 
+>>>
+```
+
+通过使用超时功能，发送到非响应主机的请求将在指定的时间之后返回，并显示捕获到 0 个应答。 此外，此函数收到的响应也可以赋给变量，并且可以通过访问此变量对响应执行后续处理：
+
+```
+>>> response = sr1(arp_request, timeout=1) 
+Begin emission: 
+....................................*
+Finished to send 1 packets.
+
+Received 37 packets, got 1 answers, remaining 0 packets 
+>>> response.display() 
+###[ ARP ]###  
+  hwtype= 0x1
+  ptype= 0x800
+  hwlen= 6
+  plen= 4
+  op= is-at
+  hwsrc= 00:0c:29:3d:84:32
+  psrc= 172.16.36.135
+  hwdst= 00:0c:29:65:fc:d2
+  pdst= 172.16.36.132 
+###[ Padding ]###
+     load= '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\ x00\x00\x00'
+```
+
+Scapy也可以用作 Python 脚本语言中的库。 这可以用于高效自动执行 Scapy 中执行的冗余任务。 Python 和 Scapy 可以用于循环遍历本地子网内的每个可能的主机地址，并向每个子网发送 ARP 请求。 下面的示例脚本可用于在主机的连续序列上执行第二层发现：
+
+```py
+#!/usr/bin/python
+
+import logging 
+import subprocess 
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR) 
+from scapy.all import *
+
+if len(sys.argv) != 2:   
+    print "Usage - ./arp_disc.py [interface]"   
+    print "Example - ./arp_disc.py eth0"   
+    print "Example will perform an ARP scan of the local subnet to which eth0 is assigned"   
+    sys.exit()
+
+interface = str(sys.argv[1])
+
+ip = subprocess.check_output("ifconfig " + interface + " | grep 'inet addr' | cut -d ':' -f 2 | cut -d ' ' -f 1", shell=True).strip() 
+prefix = ip.split('.')[0] + '.' + ip.split('.')[1] + '.' + ip.split('.')[2] + '.'
+
+for addr in range(0,254):   
+    answer=sr1(ARP(pdst=prefix+str(addr)),timeout=1,verbose=0)      
+    if answer == None:        
+        pass    
+    else:    
+        print prefix+str(addr) 
+```
+
+脚本的第一行标识了 Python 解释器所在的位置，以便脚本可以在不传递到解释器的情况下执行。 然后脚本导入所有 Scapy 函数，并定义 Scapy 日志记录级别，以消除脚本中不必要的输出。 还导入了子过程库，以便于从系统调用中提取信息。 第二个代码块是条件测试，用于评估是否向脚本提供了所需的参数。 如果在执行时未提供所需的参数，则脚本将输出使用情况的说明。 该说明包括工具的用法，示例和所执行任务的解释。
+
+在这个代码块之后，有一个单独的代码行将所提供的参数赋值给`interface `变量。下一个代码块使用`check_output()`子进程函数执行`ifconfig`系统调用，该调用也使用`grep`和`cut`从作为参数提供的本地接口提取 IP 地址。然后将此输出赋给`ip`变量。然后使用`split`函数从 IP 地址字符串中提取`/ 24`网络前缀。例如，如果`ip`变量包含`192.168.11.4`字符串，则值为`192.168.11`。它将赋给`prefix `变量。最后一个代码块是一个用于执行实际扫描的`for`循环。 `for`循环遍历介于 0 和 254 之间的所有值，并且对于每次迭代，该值随后附加到网络前缀后面。在早先提供的示例的中，将针对`192.168.11.0`和`192.168.11.254`之间的每个 IP 地址广播 ARP 请求。然后对于每个回复的活动主机，将相应的 IP 地址打印到屏幕上，以表明主机在 LAN 上活动。一旦脚本被写入本地目录，你可以在终端中使用句号和斜杠，然后是可执行脚本的名称来执行它。看看以下用于执行脚本的命令：
+
+```
+root@KaliLinux:~# ./arp_disc.py 
+Usage - ./arp_disc.py [interface] 
+Example - ./arp_disc.py eth0 
+Example will perform an ARP scan of the local subnet to which eth0 is assigned 
+```
+
+如果在没有提供任何参数的情况下执行脚本，则会将使用情况输出到屏幕。 用法输出表明此脚本需要一个参数，该参数定义应使用哪个接口执行扫描。 在以下示例中，使用`eth0`接口执行脚本：
+
+```
+root@KaliLinux:~# ./arp_disc.py eth0 
+172.16.36.1 
+172.16.36.2 
+172.16.36.132 
+172.16.36.135 
+172.16.36.254 
+```
+
+一旦运行，脚本将确定提供的接口的本地子网; 在此子网上执行 ARP 扫描，然后根据来自这些 IP 的主机的响应输出 IP 地活动址列表。 此外，Wireshark 可以同时运行，因为脚本正在运行来观察如何按顺序广播每个地址的请求，以及活动主机如何响应这些请求，如以下屏幕截图所示：
+
+![](img/2-1-1.jpg)
+
+此外，我们可以轻易将脚本的输出重定向到文本文件，然后可以用于随后的分析。 可以使用尖括号重定向输出，后跟文本文件的名称。 一个例子如下：
+
+```
+root@KaliLinux:~# ./arp_disc.py eth0 > output.txt 
+root@KaliLinux:~# ls output.txt 
+output.txt 
+root@KaliLinux:~# cat output.txt 
+172.16.36.1 
+172.16.36.2 
+172.16.36.132 
+172.16.36.135 
+172.16.36.254 
+```
+
+一旦输出重定向到输出文件，你可以使用`ls`命令验证文件是否已写入文件系统，或者可以使用`cat`命令查看文件的内容。 此脚本还可以轻松地修改为，仅对文本文件中包含的某些 IP 地址执行 ARP 请求。 为此，我们首先需要创建一个我们希望扫描的 IP 地址列表。 为此，模可以使用 Nano 或 VIM 文本编辑器。 为了评估脚本的功能，请包含先之前发现的一些活动地址，以及位于不对应任何活动主机的相同范围内的一些其他随机选择的地址。 为了在 VIM 或 Nano 中创建输入文件，请使用以下命令之一：
+
+```
+root@KaliLinux:~# vim iplist.txt 
+root@KaliLinux:~# nano iplist.txt
+```
+
+创建输入文件后，可以使用`cat`命令验证其内容。 假设文件已正确创建，你应该会看到你在文本编辑器中输入的 IP 地址列表：
+
+```
+root@KaliLinux:~# cat iplist.txt 
+172.16.36.1 
+172.16.36.2 
+172.16.36.232 
+172.16.36.135 
+172.16.36.180 
+172.16.36.203 
+172.16.36.205 
+172.16.36.254
+
+```
+
+为了创建一个将接受文本文件作为输入的脚本，我们可以修改上一个练习中的现有脚本，或创建一个新的脚本文件。 为了在我们的脚本中使用这个 IP 地址列表，我们需要在 Python 中执行一些文件处理。 工作脚本的示例如下所示：
+
+```py
+#!/usr/bin/python
+
+import logging 
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR) 
+from scapy.all import *
+
+if len(sys.argv) != 2:   
+    print "Usage - ./arp_disc.py [filename]"   
+    print "Example - ./arp_disc.py iplist.txt"   
+    print "Example will perform an ARP scan of the IP addresses listed in iplist.txt"   
+    sys.exit()
+
+filename = str(sys.argv[1]) 
+file = open(filename,'r')
+
+for addr in file:   
+    answer = sr1(ARP(pdst=addr.strip()),timeout=1,verbose=0)   
+    if answer == None:      
+        pass   
+    else:      
+        print addr.strip() 
+```
+
+这个脚本和以前用来循环遍历连续序列的脚本中唯一的真正区别是，创建一个称为`file `而不是`interface`的变量。 然后使用`open()`函数，通过在脚本的相同目录中打开`iplist.txt`文件，来创建对象。 `r`值也传递给函数来指定对文件的只读访问。 `for`循环遍历文件中列出的每个 IP 地址，然后输出回复 ARP 广播请求的 IP 地址。 此脚本可以以与前面讨论的相同方式执行：
+
+```
+root@KaliLinux:~# ./arp_disc.py 
+Usage - ./arp_disc.py [filename] 
+Example - ./arp_disc.py iplist.txt 
+Example will perform an ARP scan of the IP addresses listed in iplist.txt
+
+```
+
+如果在没有提供任何参数的情况下执行脚本，则会将使用情况输出到屏幕。 使用情况输出表明，此脚本需要一个参数，用于定义要扫描的 IP 地址的输入列表。 在以下示例中，使用执行目录中的`iplist.txt`文件执行脚本：
+
+```
+root@KaliLinux:~# ./arp_disc.py iplist.txt 
+172.16.36.2 
+172.16.36.1 
+172.16.36.132 
+172.16.36.135 
+172.16.36.254 
+```
+
+一旦运行，脚本只会输出输入文件中的 IP 地址，并且也响应 ARP 请求流量。 这些地址中的每一个表示在 LAN 上的活动系统。 使用与前面讨论的相同的方式，此脚本的输出可以轻易重定向到一个文件，使用尖1括号后跟输出文件的所需名称：
+
+```
+root@KaliLinux:~# ./arp_disc.py iplist.txt > output.txt 
+root@KaliLinux:~# ls output.txt 
+output.txt 
+root@KaliLinux:~# cat output.txt 
+172.16.36.2 
+172.16.36.1 
+172.16.36.132 
+172.16.36.135 
+172.16.36.254
+```
+
+一旦将输出重定向到输出文件，你可以使用`ls`命令验证文件是否已写入文件系统，或者可以使用`cat`命令查看文件的内容。
+
+### 工作原理
+
+通过使用`sr1()`（发送/接收单个）功能，可以在 Scapy 中进行 ARP 发现。 此函数注入由提供的参数定义的数据包，然后等待接收单个响应。 在这种情况下，我们广播了单个 ARP 请求，并且函数将返回响应。 Scapy 库可以将此技术轻易集成到脚本中，并可以测试多个系统。
+
 ## 2.2 使用 ARPing 探索第二层
 
 ARPing 是一个命令行网络工具，具有类似于常用的`ping`工具的功能。 此工具可通过提供该 IP 地址作为参数，来识别活动主机是否位于给定 IP 的本地网络上。 这个秘籍将讨论如何使用 ARPing 扫描网络上的活动主机。
@@ -225,7 +492,7 @@ MAC Address: 00:50:56:EA:54:3A (VMware)
 Nmap done: 256 IP addresses (6 hosts up) scanned in 3.22 seconds 
 ```
 
-使用此命令将向该范围内的所有主机发送广播 ARP 请求，并确定每个主动响应的主机。 也可以使用`-iL`选项对 IP 地址的输入列表执行此扫描：
+使用此命令将向该范围内的所有主机发送 ARP 广播请求，并确定每个主动响应的主机。 也可以使用`-iL`选项对 IP 地址的输入列表执行此扫描：
 
 ```
 root@KaliLinux:~# nmap -iL iplist.txt -sn
@@ -320,7 +587,7 @@ IP            At MAC Address      Count  Len   MAC Vendor                    ---
 172.16.36.254   00:50:56:ef:b9:9c    07    420   VMWare, Inc. 
 ```
 
-将此工具与其他工具区分开的另一个独特功能是执行被动发现的功能。 对整个子网中的每个 IP 地址广播 ARP 请求有时可以触发来自安全设备（例如入侵检测系统（IDS）或入侵防御系统（IPS））的警报或响应。 更隐秘的方法是侦听 ARP 流量，因为扫描系统自然会与网络上的其他系统交互，然后记录从 ARP 响应收集的数据。 这种被动扫描技术可以使用`-p`选项执行：
+将此工具与其他工具区分开的另一个独特功能是执行被动发现的功能。 对整个子网中的每个 IP 地址 ARP 广播请求有时可以触发来自安全设备（例如入侵检测系统（IDS）或入侵防御系统（IPS））的警报或响应。 更隐秘的方法是侦听 ARP 流量，因为扫描系统自然会与网络上的其他系统交互，然后记录从 ARP 响应收集的数据。 这种被动扫描技术可以使用`-p`选项执行：
 
 ```
 root@KaliLinux:~# netdiscover -p
