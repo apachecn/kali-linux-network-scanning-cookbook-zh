@@ -472,3 +472,126 @@ msf  auxiliary(arp_sweep) > run
 ### 工作原理
 
 Metasploit 执行 ARP 发现的基本原理是相同的：广播一系列 ARP 请求，记录并输出 ARP 响应。 Metasploit  辅助模块的输出提供所有活动系统的 IP 地址，然后，它还在括号中提供 MAC 厂商名称。
+
+## 2.6 使用 ICMP 探索第三层
+
+第三层的发现可能是网络管理员和技术人员中最常用的工具。 第三层的发现使用著名的 ICMP ping 来识别活动主机。 此秘籍演示了如何使用 ping 工具在远程主机上执行第三层发现。
+
+### 准备
+
+使用`ping`执行第三层发现不需要实验环境，因为 Internet 上的许多系统都将回复 ICMP 回显请求。但是，强烈建议你只在您自己的实验环境中执行任何类型的网络扫描，除非你完全熟悉您受到任何管理机构施加的法律法规。如果你希望在实验环境中执行此技术，你需要至少有一个响应 ICMP 请求的系统。在提供的示例中，使用 Linux 和 Windows 系统的组合。有关在本地实验环境中设置系统的更多信息，请参阅第一章中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。此外，本节还需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。有关编写脚本的更多信息，请参阅第一章中的“使用文本编辑器（VIM 和 Nano）”秘籍。
+
+### 操作步骤
+
+大多数在 IT 行业工作的人都相当熟悉`ping`工具。 要使用`ping`确定主机是否处于活动状态，你只需要向命令传递参数来定义要测试的 IP 地址：
+
+```
+root@KaliLinux:~# ping 172.16.36.135 
+PING 172.16.36.135 (172.16.36.135) 56(84) bytes of data. 
+64 bytes from 172.16.36.135: icmp_req=1 ttl=64 time=1.35 ms 
+64 bytes from 172.16.36.135: icmp_req=2 ttl=64 time=0.707 ms 
+64 bytes from 172.16.36.135: icmp_req=3 ttl=64 time=0.369 ms 
+^C 
+--- 172.16.36.135 ping statistics --
+3 packets transmitted, 3 received, 0% packet loss, time 2003ms 
+rtt min/avg/max/mdev = 0.369/0.809/1.353/0.409 ms
+```
+
+发出此命令时，ICMP 回显请求将直接发送到提供的 IP 地址。 为了接收对此 ICMP 回显请求的回复，必须满足几个条件。 这些条件如下：
+
++   测试的 IP 地址必须分配给系统
++   系统必须处于活动状态并在线
++   必须存在从扫描系统到目标 IP 的可用路由
++   系统必须配置为响应 ICMP 流量
++   扫描系统和配置为丢弃 ICMP 流量的目标 IP 之间没有基于主机或网络防火墙
+
+你可以看到，有很多变量成为 ICMP 发现的成功因素。 正是由于这个原因，ICMP 可能有点不可靠，但与 ARP 不同，它是一个可路由的协议，可用于发现局域网外的主机。 请注意，在前面的示例中，在`ping`命令显示的输出中出现`^ C`。 这表示使用了转义序列（具体来说，`Ctrl + C`）来停止进程。 与 Windows 不同，默认情况下，集成到 Linux 操作系统的`ping`命令会无限`ping`目标主机。 但是，`-c`选项可用于指定要发送的 ICMP 请求数。 使用此选项，一旦达到超时或每个发送的数据包的回复已接收，过程将正常结束。 看看下面的命令：
+
+```
+root@KaliLinux:~# ping 172.16.36.135 -c 2 
+PING 172.16.36.135 (172.16.36.135) 56(84) bytes of data. 
+64 bytes from 172.16.36.135: icmp_req=1 ttl=64 time=0.611 ms
+64 bytes from 172.16.36.135: icmp_req=2 ttl=64 time=0.395 ms
+--- 172.16.36.135 ping statistics --
+2 packets transmitted, 2 received, 0% packet loss, time 1000ms 
+rtt min/avg/max/mdev = 0.395/0.503/0.611/0.108 ms 
+```
+
+与 ARPing 相同的方式可以在 bash 脚本中使用，通过并行地循环遍历多个 IP，`ping`可以与 bash 脚本结合使用，来在多个主机上并行执行第三层发现。 为了编写脚本，我们需要确定与成功和失败的 ping 请求相关的各种响应。 为此，我们应该首先 ping 一个我们知道它活动并响应 ICMP 的主机，然后使用 ping 请求跟踪一个无响应的地址。 以下命令演示了这一点：
+
+```
+root@KaliLinux:~# ping 74.125.137.147 -c 1 
+PING 74.125.137.147 (74.125.137.147) 56(84) bytes of data. 
+64 bytes from 74.125.137.147: icmp_seq=1 ttl=128 time=31.3 ms
+--- 74.125.137.147 ping statistics --
+1 packets transmitted, 1 received, 0% packet loss, time 0ms 
+rtt min/avg/max/mdev = 31.363/31.363/31.363/0.000 ms 
+root@KaliLinux:~# ping 83.166.169.231 -c 1 
+PING 83.166.169.231 (83.166.169.231) 56(84) bytes of data.
+--- 83.166.169.231 ping statistics --
+1 packets transmitted, 0 received, 100% packet loss, time 0ms
+```
+
+与 ARPing 请求一样，来自唯一字符串的字节只存在在与活动 IP 地址相关的输出中，并且也位于包含此地址的行上。 使用同样的方式，我们可以使用`grep`和`cut`的组合,从任何成功的`ping`请求中提取 IP 地址：
+
+```
+root@KaliLinux:~# ping 74.125.137.147 -c 1 | grep "bytes from" 
+64 bytes from 74.125.137.147: icmp_seq=1 ttl=128 time=37.2 ms 
+root@KaliLinux:~# ping 74.125.137.147 -c 1 | grep "bytes from" | cut -d " " -f 4 
+74.125.137.147: 
+root@KaliLinux:~# ping 74.125.137.147 -c 1 | grep "bytes from" | cut -d " " -f 4 | cut -d ":" -f 1 
+74.125.137.147
+
+```
+
+通过在包含一系列目标 IP 地址的循环中使用此任务序列，我们可以快速识别响应 ICMP 回显请求的活动主机。 输出是一个简单的的活动 IP 地址列表。 使用此技术的示例脚本如下所示：
+
+```sh
+#!/bin/bash
+
+if [ "$#" -ne 1 ]; then 
+    echo "Usage - ./ping_sweep.sh [/24 network address]" 
+    echo "Example - ./ping_sweep.sh 172.16.36.0" 
+    echo " Example will perform an ICMP ping sweep of the 172.16.36.0/24 network" 
+    exit 
+fi
+
+prefix=$(echo $1 | cut -d '.' -f 1-3)
+
+for addr in $(seq 1 254); do 
+    ping -c 1 $prefix.$addr | grep "bytes from" | cut -d " " -f 4 | cut -d ":" -f 1 & 
+done
+```
+
+在提供的bash脚本中，第一行定义了 bash 解释器的位置。接下来的代码块执行测试来确定是否提供了预期的一个参数。这通过评估提供的参数的数量是否不等于 1 来确定。如果未提供预期参数，则输出脚本的用法，并且退出脚本。用法输出表明，脚本接受`/ 24`网络地址作为参数。下一行代码从提供的网络地址中提取网络前缀。例如，如果提供的网络地址是`192.168.11.0`，则前缀变量将被赋值为`192.168.11`。然后使用`for`循环遍历最后一个字节的值，来在本地`/ 24`网络中生成每个可能的 IP 地址。对于每个可能的 IP 地址，执行单个`ping`命令。然后通过管道传输每个请求的响应，然后使用`grep`来提取带有短语`bytes`的行。这只会提取包含活动主机的 IP 地址的行。最后，使用一系列`cut`函数从该输出中提取 IP 地址。请注意，在`for`循环任务的末尾使用`&`符号，而不是分号。该符号能够并行执行任务，而不是顺序执行。这极大地减少了扫描 IP 范围所需的时间。然后，可以使用句号和斜杠，并带上是可执行脚本的名称来执行脚本：
+
+```
+root@KaliLinux:~# ./ping_sweep.sh 
+Usage - ./ping_sweep.sh [/24 network address] 
+Example - ./ping_sweep.sh 172.16.36.0
+Example will perform an ICMP ping sweep of the 172.16.36.0/24 network 
+root@KaliLinux:~# ./ping_sweep.sh 172.16.36.0 
+172.16.36.2 
+172.16.36.1 
+172.16.36.232 
+172.16.36.249 
+```
+
+当在没有提供任何参数的情况下执行时，脚本会返回用法。 但是，当使用网络地址值执行时，任务序列开始执行，并返回活动 IP 地址的列表。 如前面的脚本中所讨论的那样，此脚本的输出也可以重定向到文本文件，来供将来使用。 这可以使用尖括号，后跟输出文件的名称来实现。
+
+```
+root@KaliLinux:~# ./ping_sweep.sh 172.16.36.0 > output.txt 
+root@KaliLinux:~# ls output.txt output.txt 
+root@KaliLinux:~# cat output.txt 172.16.36.2 
+172.16.36.1 
+172.16.36.232 
+172.16.36.249 
+```
+
+在提供的示例中，`ls`命令用于确认输出文件已创建。 通过将文件名作为参数传递给`cat`命令，可以查看此输出文件的内容。
+
+
+### 工作原理
+
+Ping 是 IT 行业中众所周知的工具，其现有功能能用于识别活动主机。 然而，它的目的是为了发现单个主机是否存活，而不是作为扫描工具。 这个秘籍中的 bash 脚本基本上与在`/ 24` CIDR范围中对每个可能的 IP 地址使用 ping 相同。 但是，我们不需要手动执行这种繁琐的任务，bash 允许我们通过循环传递任务序列来快速，轻松地执行此任务。
+
