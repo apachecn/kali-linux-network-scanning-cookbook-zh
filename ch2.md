@@ -1222,7 +1222,7 @@ root@KaliLinux:~# cat output.txt
 
 ### 准备
 
-使用 Scapy 执行第三层发现不需要实验环境，因为 Internet 上的许多系统都将回复 TCP 和 UDP 请求。但是，强烈建议你只在您自己的实验环境中执行任何类型的网络扫描，除非你完全熟悉您受到任何管理机构施加的法律法规。如果你希望在实验环境中执行此技术，你需要至少有一个响应 TCP/UDP 请求的系统。在提供的示例中，使用 Linux 和 Windows 系统的组合。有关在本地实验环境中设置系统的更多信息，请参阅第一章中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。此外，本节还需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。有关编写脚本的更多信息，请参阅第一章中的“使用文本编辑器（VIM 和 Nano）”秘籍。
+使用 Scapy 执行第四层发现不需要实验环境，因为 Internet 上的许多系统都将回复 TCP 和 UDP 请求。但是，强烈建议你只在您自己的实验环境中执行任何类型的网络扫描，除非你完全熟悉您受到任何管理机构施加的法律法规。如果你希望在实验环境中执行此技术，你需要至少有一个响应 TCP/UDP 请求的系统。在提供的示例中，使用 Linux 和 Windows 系统的组合。有关在本地实验环境中设置系统的更多信息，请参阅第一章中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。此外，本节还需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。有关编写脚本的更多信息，请参阅第一章中的“使用文本编辑器（VIM 和 Nano）”秘籍。
 
 ### 操作步骤
 
@@ -1599,3 +1599,121 @@ Received 5 packets, got 1 answers, remaining 0 packets
 
 这里提供的示例使用 UDP 和 TCP 发现方式。 我们能够使用 Scapy 来制作自定义请求，来使用这些协议识别活动主机。 在 TCP 的情况下，我们构造了自定义的 ACK 封包并将其发送到每个目标系统上的任意端口。 在接收到 RST 应答的情况下，系统被识别为活动的。 或者，空的 UDP 请求被发送到任意端口，来尝试请求 ICMP 端口不可达响应。 响应可用作活动系统的标识。 然后这些技术中的每一个都可以在 Python 脚本中使用，来对多个主机或地址范围执行发现。
 
+## 2.12 使用 Nmap 探索第四层
+
+除了集成到 Nmap 工具中的许多其他扫描功能，还有一个选项用于执行第四层发现。 这个具体的秘籍演示了如何使用 Nmap 执行 TCP 和 UDP 协议的第4层发现。
+
+
+### 准备
+
+使用 Nmap 执行第四层发现不需要实验环境，因为 Internet 上的许多系统都将回复 TCP 和 UDP 请求。但是，强烈建议你只在您自己的实验环境中执行任何类型的网络扫描，除非你完全熟悉您受到任何管理机构施加的法律法规。如果你希望在实验环境中执行此技术，你需要至少有一个响应 TCP/UDP 请求的系统。在提供的示例中，使用 Linux 和 Windows 系统的组合。有关在本地实验环境中设置系统的更多信息，请参阅第一章中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。此外，本节还需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。有关编写脚本的更多信息，请参阅第一章中的“使用文本编辑器（VIM 和 Nano）”秘籍。
+
+### 操作步骤
+
+在 Nmap 中有一些选项用于发现运行 TCP 和 UDP 的主机。 Nmap 的 UDP 发现已配置为，使用必需的唯一载荷来触发无响应的服务。 为了使用 UDP 执行发现扫描，请使用`-PU`选项和端口来测试：
+
+```
+root@KaliLinux:~# nmap 172.16.36.135 -PU53 -sn
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-11 20:11 EST 
+Nmap scan report for 172.16.36.135 Host is up (0.00042s latency). 
+MAC Address: 00:0C:29:3D:84:32 (VMware) 
+Nmap done: 1 IP address (1 host up) scanned in 0.13 seconds 
+This UDP discovery scan can also be modified to perform a scan of a sequential range by using dash notation. In the example provided, we will scan the entire 172.16.36.0/24 address range: 
+root@KaliLinux:~# nmap 172.16.36.0-255 -PU53 -sn
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-17 06:33 EST 
+Nmap scan report for 172.16.36.1 
+Host is up (0.00020s latency). 
+MAC Address: 00:50:56:C0:00:08 (VMware) 
+Nmap scan report for 172.16.36.2 
+Host is up (0.00018s latency). 
+MAC Address: 00:50:56:FF:2A:8E (VMware) 
+Nmap scan report for 172.16.36.132 
+Host is up (0.00037s latency). 
+MAC Address: 00:0C:29:65:FC:D2 (VMware) 
+Nmap scan report for 172.16.36.135 
+Host is up (0.00041s latency).
+MAC Address: 00:0C:29:3D:84:32 (VMware) 
+Nmap scan report for 172.16.36.180 
+Host is up. 
+Nmap scan report for 172.16.36.254 
+Host is up (0.00015s latency). 
+MAC Address: 00:50:56:EB:E1:8A (VMware) 
+Nmap done: 256 IP addresses (6 hosts up) scanned in 3.91 seconds
+
+```
+
+与之类似，也可以对输入列表所定义的一系列 IP 地址执行 Nmap UDP ping 请求。 在提供的示例中，我们使用同一目录中的`iplist.txt`文件来扫描以下列出的每个主机：
+
+```
+root@KaliLinux:~# nmap -iL iplist.txt -sn -PU53
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-17 06:36 EST 
+Nmap scan report for 172.16.36.2 
+Host is up (0.00015s latency). 
+MAC Address: 00:50:56:FF:2A:8E (VMware) 
+Nmap scan report for 172.16.36.1 
+Host is up (0.00024s latency). 
+MAC Address: 00:50:56:C0:00:08 (VMware) 
+Nmap scan report for 172.16.36.135 
+Host is up (0.00029s latency). 
+MAC Address: 00:0C:29:3D:84:32 (VMware) 
+Nmap scan report for 172.16.36.132 
+Host is up (0.00030s latency). 
+MAC Address: 00:0C:29:65:FC:D2 (VMware) 
+Nmap scan report for 172.16.36.180 
+Host is up. 
+Nmap scan report for 172.16.36.254 
+Host is up (0.00021s latency). 
+MAC Address: 00:50:56:EB:E1:8A (VMware) 
+Nmap done: 6 IP addresses (6 hosts up) scanned in 0.31 seconds
+
+```
+
+尽管来自这些示例中的每一个的输出表明发现了六个主机，但是这不一定标识六个主机都通过 UDP 发现方法被发现。 除了在 UDP 端口 53 上执行的探测之外，Nmap 还将利用任何其它发现技术，来发现在指定范围内或在输入列表内的主机。 虽然`-sn`选项有效防止了 Nmap 执行 TCP 端口扫描，但它不会完全隔离我们的 UDP ping 请求。 虽然没有有效的方法来隔离这个任务，你可以通过分析 Wireshark 或 TCPdump 中的流量，来确定通过 UDP 请求发现的主机。 或者，Nmap 也可以用于以 Scapy 的相同方式，来执行 TCP ACK ping。 为了使用 ACK 数据包识别活动主机，请结合你要使用的端口使用`-PA`选项：
+
+```
+root@KaliLinux:~# nmap 172.16.36.135 -PA80 -sn
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-11 20:09 EST 
+Nmap scan report for 172.16.36.135 
+Host is up (0.00057s latency). 
+MAC Address: 00:0C:29:3D:84:32 (VMware) 
+Nmap done: 1 IP address (1 host up) scanned in 0.21 seconds 
+```
+
+TCP ACK ping 发现方法还可以使用破折号符号在一定范围的主机上执行，或者可以基于输入列表在指定的主机地址上执行：
+
+```
+root@KaliLinux:~# nmap 172.16.36.0-255 -PA80 -sn
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-17 06:46 EST 
+Nmap scan report for 172.16.36.132 
+Host is up (0.00033s latency). 
+MAC Address: 00:0C:29:65:FC:D2 (VMware) 
+Nmap scan report for 172.16.36.135 
+Host is up (0.00013s latency). 
+MAC Address: 00:0C:29:3D:84:32 (VMware) 
+Nmap scan report for 172.16.36.180 
+Host is up. 
+Nmap done: 256 IP addresses (3 hosts up) scanned in 3.43 seconds 
+
+root@KaliLinux:~# nmap -iL iplist.txt -PA80 -sn
+
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-17 06:47 EST 
+Nmap scan report for 172.16.36.135 
+Host is up (0.00033s latency). 
+MAC Address: 00:0C:29:3D:84:32 (VMware)
+
+Nmap scan report for 172.16.36.132 
+Host is up (0.00029s latency). 
+MAC Address: 00:0C:29:65:FC:D2 (VMware) 
+Nmap scan report for 172.16.36.180 
+Host is up. 
+Nmap done: 3 IP addresses (3 hosts up) scanned in 0.31 seconds
+
+```
+
+### 工作原理
+
+Nmap 用于执行 TCP 发现的技术的基本原理，与 Scapy 用于执行 TCP 发现的技术相同。 Nmap 向目标系统上的任意端口发送一系列 TCP ACK 数据包，并尝试请求 RST 响应作为活动系统的标识。 然而，Nmap 用于执行 UDP 发现的技术有点不同于 Scapy 的技术。 Nmap 不仅仅依赖于可能不一致或阻塞的 ICMP 主机不可达响应，而且通过向目标端口发送服务特定请求，尝试请求响应，来执行主机发现。
