@@ -939,3 +939,102 @@ Nmap done: 6 IP addresses (6 hosts up) scanned in 0.04 seconds
 ### 工作原理
 
 Nmap 通过对提供的范围或文本文件中的每个 IP 地址发出 ICMP 回显请求，来执行第3层扫描。 由于 Nmap 是一个多线程工具，所以它会并行发送多个请求，结果会很快返回给用户。 由于 Nmap 的发现功能是自适应的，它只会使用 ICMP 发现，如果 ARP 发现无法有效定位本地子网上的主机。 或者，如果 ARP 发现或 ICMP 发现都不能有效识别给定 IP 地址上的活动主机时，那么将采第四层发现技术。
+
+## 2.9 使用 fping 探索第三层
+
+`fping`工具费长类似于著名的`ping`工具。 但是，它也内建了在`ping`中不存在的许多附加功能。 这些附加功能让`fping`能够用作功能扫描工具，无需额外修改。 该秘籍演示了如何使用`fping`在远程主机上执行第3层发现。
+
+### 准备
+
+使用 Nmap 执行第三层发现不需要实验环境，因为 Internet 上的许多系统都将回复 ICMP 回显请求。但是，强烈建议你只在您自己的实验环境中执行任何类型的网络扫描，除非你完全熟悉您受到任何管理机构施加的法律法规。如果你希望在实验环境中执行此技术，你需要至少有一个响应 ICMP 请求的系统。在提供的示例中，使用 Linux 和 Windows 系统的组合。有关在本地实验环境中设置系统的更多信息，请参阅第一章中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
+
+### 操作步骤
+
+`fping`非常类似于添加了一些额外功能的`ping`工具。 它可以以`ping`的相同方式，向单个目标发送 ICMP 回显请求，以确定它是否活动。 这通过将 IP 地址作为参数传递给`fping`实用程序来完成：
+
+```
+root@KaliLinux:~# fping 172.16.36.135 
+172.16.36.135 is alive
+
+```
+
+与标准`ping`工具不同，`fping`会在收到单个应答后停止发送 ICMP 回显请求。 在接收到回复时，它将显示对应该地址的主机是活动的。 或者，如果未从地址接收到响应，则在确定主机不可达之前，`fping`通常尝试联系系统四次：
+
+```
+root@KaliLinux:~# fping 172.16.36.136 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.136 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.136 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.136 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 
+172.16.36.136 172.16.36.136 is unreachable
+```
+
+可以使用`-c count`选项修改此默认连接尝试次数，并向其提供一个定义尝试次数的整数值：
+
+```
+root@KaliLinux:~# fping 172.16.36.135 -c 1 
+172.16.36.135 : [0], 84 bytes, 0.67 ms (0.67 avg, 0% loss)
+
+172.16.36.135 : xmt/rcv/%loss = 1/1/0%, min/avg/max = 0.67/0.67/0.67 
+root@KaliLinux:~# fping 172.16.36.136 -c 1
+
+172.16.36.136 : xmt/rcv/%loss = 1/0/100%
+```
+
+当以这种方式执行时，输出更加隐蔽一些，但可以通过仔细分析来理解。 任何主机的输出包括 IP 地址，尝试次数（`xmt`），接收的回复数（`rcv`）和丢失百分比（`%loss`）。 在提供的示例中，`fping`发现第一个地址处于联机状态。 这可以由接收的字节数和应答的等待时间都被返回的事实来证明。 你还可以通过检查百分比损失，来轻松确定是否存在与提供的 IP 地址关联的活动主机。 如果百分比损失为 100，则未收到回复。
+
+与`ping`（最常用作故障排除工具）不同，`fping`内建了集成功能，可扫描多个主机。 可以使用`fping`扫描主机序列，使用`-g`选项动态生成 IP 地址列表。 要指定扫描范围，请使用该参数传递所需序列范围中的第一个和最后一个 IP 地址：
+
+```
+root@KaliLinux:~# fping -g 172.16.36.1 172.16.36.4 
+172.16.36.1 is alive 
+172.16.36.2 is alive 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.3
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.3 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.3 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.3 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.4 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.4 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.4 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.4 172.16.36.3 is unreachable 
+172.16.36.4 is unreachable
+```
+
+生成列表选项也可用于基于 CIDR 范围符号生成列表。 以相同的方式，`fping`将循环遍历这个动态生成的列表并扫描每个地址：
+
+```
+root@KaliLinux:~# fping -g 172.16.36.0/24 
+172.16.36.1 is alive 
+172.16.36.2 is alive 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.3 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.4 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.5 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.6 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.7 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.8 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.9 
+                    *** {TRUNCATED} ***
+
+```
+
+最后，`fping`还可以用于扫描由输入文本文件的内容指定的一系列地址。 要使用输入文件，请使用`-f`文件选项，然后提供输入文件的文件名或路径：
+
+```
+root@KaliLinux:~# fping -f iplist.txt 172.16.36.2 is alive 172.16.36.1 is alive 172.16.36.132 is alive 172.16.36.135 is alive 172.16.36.180 is alive 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.203 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.203 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.203 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.203 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.205 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.205 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.205 
+ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.205 
+172.16.36.203 is unreachable 
+172.16.36.205 is unreachable 
+172.16.36.254 is unreachable
+```
+
+### 工作原理
+
+`fping`工具执行ICMP发现的方式与我们之前讨论的其他工具相同。 对于每个 IP 地址，`fping`发送一个或多个 ICMP 回显请求，然后评估所接收的响应以识别活动主机。 `fping`还可以用于通过提供适当的参数，来扫描一系列系统或 IP 地址的输入列表。 因此，我们不必使用`bash`脚本来操作工具，就像使用`ping`操作一样，使其成为有效的扫描工具。
+
