@@ -1215,3 +1215,387 @@ root@KaliLinux:~# cat output.txt
 ### 工作原理
 
 我们需要进行一些调整，才能使用`hping3`对多个主机或地址范围执行主机发现。 提供的秘籍使用 bash 脚本顺序执行 ICMP 回应请求。 这是可性的，因为成功和不成功的请求能够生成唯一响应。 通过将函数传递给一个循环，并将唯一响应传递给`grep`，我们可以高效开发出一个脚本，对多个系统依次执行 ICMP 发现，然后输出活动主机列表。
+
+## 2.11 使用 Scapy 探索第四层
+
+多种不同方式可以用于在第四层执行目标发现。可以使用用户数据报协议（UDP）或传输控制协议（TCP）来执行扫描。 Scapy 可以用于使用这两种传输协议来制作自定义请求，并且可以与 Python 脚本结合使用以开发实用的发现工具。 此秘籍演示了如何使用 Scapy 执行 TCP 和 UDP 的第四层发现。
+
+### 准备
+
+使用 Scapy 执行第三层发现不需要实验环境，因为 Internet 上的许多系统都将回复 TCP 和 UDP 请求。但是，强烈建议你只在您自己的实验环境中执行任何类型的网络扫描，除非你完全熟悉您受到任何管理机构施加的法律法规。如果你希望在实验环境中执行此技术，你需要至少有一个响应 TCP/UDP 请求的系统。在提供的示例中，使用 Linux 和 Windows 系统的组合。有关在本地实验环境中设置系统的更多信息，请参阅第一章中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。此外，本节还需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。有关编写脚本的更多信息，请参阅第一章中的“使用文本编辑器（VIM 和 Nano）”秘籍。
+
+### 操作步骤
+
+为了验证从活动主机接收到的 RST 响应，我们可以使用 Scapy 向已知的活动主机发送 TCP ACK 数据包。 在提供的示例中，ACK 数据包将发送到 TCP 目标端口 80。此端口通常用于运行 HTTP Web 服务。 演示中使用的主机当前拥有在此端口上运行的 Apache 服务。 为此，我们需要构建我们的请求的每个层级。 要构建的第一层是IP层。 看看下面的命令：
+
+```
+root@KaliLinux:~# scapy Welcome to Scapy (2.2.0) 
+>>> i = IP() 
+>>> i.display() 
+###[ IP ]###
+  version= 4
+  ihl= None
+  tos= 0x0
+  len= None
+  id= 1
+  flags=
+  frag= 0
+  ttl= 64
+  proto= ip
+  chksum= None
+  src= 127.0.0.1
+  dst= 127.0.0.1
+  \options\ 
+>>> i.dst="172.16.36.135" 
+>>> i.display() 
+###[ IP ]###
+  version= 4
+  ihl= None
+  tos= 0x0
+  len= None
+  id= 1
+  flags=
+  frag= 0
+  ttl= 64
+  proto= ip
+  chksum= None
+  src= 172.16.36.180
+  dst= 172.16.36.135
+  \options\ 
+```
+
+这里，我们将`i`变量初始化为`IP`对象，然后重新配置标准配置，将目标地址设置为目标服务器的 IP 地址。 请注意，当为目标地址提供除回送地址之外的任何 IP 地址时，源 IP 地址会自动更新。 我们需要构建的下一层是我们的 TCP 层。 这可以在以下命令中看到：
+
+```
+>>> t = TCP() 
+>>> t.display()
+###[ TCP ]###
+  sport= ftp_data
+  dport= http
+  seq= 0
+  ack= 0
+  dataofs= None
+  reserved= 0
+  flags= S
+  window= 8192
+  chksum= None
+  urgptr= 0
+  options= {} 
+>>> t.flags='A' 
+>>> t.display() 
+###[ TCP ]###
+  sport= ftp_data
+  dport= http
+  seq= 0
+  ack= 0
+  dataofs= None
+  reserved= 0
+  flags= A
+  window= 8192
+  chksum= None
+  urgptr= 0
+  options= {}
+```
+
+这里，我们将`t`变量初始化为`TCP`对象。 注意，对象的默认配置已经将目标端口设置为 HTTP 或端口 80。这里，我们只需要将 TCP 标志从`S`（SYN）更改为`A`（ACK）。 现在，可以通过使用斜杠分隔每个层级来构建栈，如以下命令中所示：
+
+```
+>>> request = (i/t) 
+>>> request.display() 
+###[ IP ]###
+  version= 4
+  ihl= None
+  tos= 0x0
+  len= None
+  id= 1
+  flags=
+  frag= 0
+  ttl= 64
+  proto= tcp
+  chksum= None
+  src= 172.16.36.180
+  dst= 172.16.36.135
+  \options\ 
+###[ TCP ]###
+     sport= ftp_data
+     dport= http
+     seq= 0
+     ack= 0
+     dataofs= None
+     reserved= 0
+     flags= A
+     window= 8192
+     chksum= None
+     urgptr= 0
+     options= {}
+
+```
+
+这里，我们将整个请求栈赋给`request`变量。 现在，可以使用`send `和`recieve`函数跨线路发送请求，然后可以评估响应来确定目标地址的状态：
+
+```
+>>> response = sr1(request) 
+Begin emission: 
+.......Finished to send 1 packets. 
+....* 
+Received 12 packets, got 1 answers, remaining 0 packets 
+>>> response.display() 
+###[ IP ]###
+  version= 4L
+  ihl= 5L
+  tos= 0x0
+  len= 40
+  id= 0
+  flags= DF
+  frag= 0L
+  ttl= 64
+  proto= tcp
+  chksum= 0x9974
+  src= 172.16.36.135
+  dst= 172.16.36.180
+  \options\ 
+###[ TCP ]###
+     sport= http
+     dport= ftp_data
+     seq= 0
+     ack= 0
+     dataofs= 5L
+     reserved= 0L
+     flags= R
+     window= 0
+     chksum= 0xe21
+     urgptr= 0
+     options= {} 
+###[ Padding ]###
+        load= '\x00\x00\x00\x00\x00\x00'
+
+```
+
+请注意，远程系统使用设置了 RST 标志的 TCP 数据包进行响应。 这由分配给`flags`属性的`R`值表示。 通过直接调用函数，可以将堆叠请求和发送和接收响应的整个过程压缩为单个命令：
+
+```
+>>> response = sr1(IP(dst="172.16.36.135")/TCP(flags='A')) 
+.Begin emission: 
+................
+Finished to send 1 packets. 
+....* 
+Received 22 packets, got 1 answers, remaining 0 packets 
+>>> response.display() 
+###[ IP ]###
+  version= 4L
+  ihl= 5L
+  tos= 0x0
+  len= 40
+  id= 0
+  flags= DF
+  frag= 0L
+  ttl= 64
+  proto= tcp
+  chksum= 0x9974
+  src= 172.16.36.135
+  dst= 172.16.36.180
+  \options\ 
+###[ TCP ]###
+     sport= http
+     dport= ftp_data
+     seq= 0
+     ack= 0
+     dataofs= 5L
+     reserved= 0L
+     flags= R
+     window= 0
+     chksum= 0xe21
+     urgptr= 0
+     options= {} 
+###[ Padding ]###
+        load= '\x00\x00\x00\x00\x00\x00'
+
+```
+
+现在我们已经确定了与发送到活动主机上的打开端口的 ACK 数据包相关联的响应，让我们尝试向活动系统上的已关闭端口发送类似的请求，并确定响应是否有任何变化：
+
+```
+>>> response = sr1(IP(dst="172.16.36.135")/TCP(dport=1111,flags='A')) 
+.Begin emission: 
+.........
+Finished to send 1 packets. 
+....* 
+Received 15 packets, got 1 answers, remaining 0 packets 
+>>> response.display() 
+###[ IP ]###
+  version= 4L
+  ihl= 5L
+  tos= 0x0
+  len= 40
+  id= 0
+  flags= DF
+  frag= 0L
+  ttl= 64
+  proto= tcp
+  chksum= 0x9974
+  src= 172.16.36.135
+  dst= 172.16.36.180
+  \options\ 
+###[ TCP ]###
+     sport= 1111
+     dport= ftp_data
+     seq= 0
+     ack= 0
+     dataofs= 5L
+     reserved= 0L
+     flags= R
+     window= 0
+     chksum= 0xa1a
+     urgptr= 0
+     options= {} 
+###[ Padding ]###
+        load= '\x00\x00\x00\x00\x00\x00'
+
+```
+
+在此请求中，目标 TCP 端口已从默认端口 80 更改为端口 1111（未在其上运行服务的端口）。 请注意，从活动系统上的打开端口和关闭端口返回的响应是相同的。 无论这是否是在扫描端口上主动运行的服务，活动系统都会返回 RST 响应。 另外，应当注意，如果将类似的扫描发送到与活动系统无关的 IP 地址，则不会返回响应。 这可以通过将请求中的目标 IP 地址修改为与实际系统无关的 IP 地址来验证：
+
+```
+>>> response = sr1(IP(dst="172.16.36.136")/TCP(dport=80,flags='A'),timeo ut=1) 
+Begin emission:
+......................................................................... ......................................................................... ......
+Finished to send 1 packets. 
+..................... 
+Received 3559 packets, got 0 answers, remaining 1 packets
+```
+
+因此，通过查看，我们发现对于发送到活动主机任何端口的 ACK 数据包，无论端口状态如何，都将返回 RST 数据包，但如果没有活动主机与之相关，则不会从 IP 接收到响应。 这是一个好消息，因为它意味着，我们可以通过只与每个系统上的单个端口进行交互，在大量系统上执行发现扫描。 将 Scapy 与 Python 结合使用，我们可以快速循环访问`/ 24`网络范围中的所有地址，并向每个系统上的仅一个 TCP 端口发送单个 ACK 数据包。 通过评估每个主机返回的响应，我们可以轻易输出活动 IP 地址列表。
+
+```py
+#!/usr/bin/python
+
+import logging 
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR) 
+from scapy.all import *
+
+if len(sys.argv) != 2:   
+    print "Usage - ./ACK_Ping.py [/24 network address]"   
+    print "Example - ./ACK_Ping.py 172.16.36.0"   
+    print "Example will perform a TCP ACK ping scan of the 172.16.36.0/24 range"  
+    sys.exit()
+ 
+address = str(sys.argv[1]) 
+prefix = address.split('.')[0] + '.' + address.split('.')[1] + '.' + address.split('.')[2] + '.'
+
+for addr in range(1,254):
+    response = sr1(IP(dst=prefix+str(addr))/TCP(dport=80,flags='A'), timeout=1,verbose=0)  
+    try:      
+        if int(response[TCP].flags) == 4:         
+            print "172.16.36."+str(addr)   
+    except:      
+        pass 
+```
+
+提供的示例脚本相当简单。 当循环遍历 IP 地址中的最后一个八位字节的每个可能值时，ACK 封包被发送到 TCP 端口 80，并且评估响应来确定响应中的 TCP 标志的整数转换是否具有值`4` （与单独 RST 标志相关的值）。 如果数据包具有 RST 标志，则脚本将输出返回响应的系统的 IP 地址。 如果没有收到响应，Python 无法测试响应变量的值，因为没有为其赋任何值。 因此，如果没有返回响应，将发生异常。 如果返回异常，脚本将会跳过。 生成的输出是活动目标 IP 地址的列表。 此脚本可以使用句号和斜杠，后跟可执行脚本的名称执行：
+
+```
+root@KaliLinux:~# ./ACK_Ping.py 
+Usage - ./ACK_Ping.py [/24 network address] 
+Example - ./ACK_Ping.py 172.16.36.0 
+Example will perform a TCP ACK ping scan of the 172.16.36.0/24 range 
+root@KaliLinux:~# ./ACK_Ping.py 
+172.16.36.1 
+172.16.36.2 
+172.16.36.132 
+172.16.36.135 
+```
+
+类似的发现方法可以用于使用 UDP 协议来执行第四层发现。 为了确定我们是否可以使用 UDP 协议发现主机，我们需要确定如何从任何运行 UDP 的活动主机触发响应，而不管系统是否有在 UDP 端口上运行服务。 为了尝试这个，我们将首先在 Scapy 中构建我们的请求栈：
+
+```
+root@KaliLinux:~# scapy Welcome to Scapy (2.2.0) 
+>>> i = IP() 
+>>> i.dst = "172.16.36.135" 
+>>> u = UDP() 
+>>> request = (i/u) 
+>>> request.display()
+###[ IP ]###
+  version= 4
+  ihl= None
+  tos= 0x0
+  len= None
+  id= 1
+  flags=
+  frag= 0
+  ttl= 64
+  proto= udp
+  chksum= None
+  src= 172.16.36.180
+  dst= 172.16.36.135
+  \options\ 
+###[ UDP ]###
+     sport= domain
+     dport= domain
+     len= None
+     chksum= None
+```
+
+注意，UDP对象的默认源和目标端口是域名系统（DNS）。 这是一种常用的服务，可用于将域名解析为 IP 地址。 发送请求是因为它是有助于判断，IP 地址是否与活动主机相关联。 发送此请求的示例可以在以下命令中看到：
+
+```
+>>> reply = sr1(request,timeout=1,verbose=1) 
+Begin emission: 
+Finished to send 1 packets.
+Received 7 packets, got 0 answers, remaining 1 packets
+```
+
+尽管与目标 IP 地址相关的主机是活动的，但我们没有收到响应。 讽刺的是，缺乏响应实际上是由于 DNS 服务正在目标系统上使用。这是因为活动服务通常配置为仅响应包含特定内容的请求。 你可能会自然想到，有时可以尝试通过探测未运行服务的 UDP 端口来高效识别主机，假设 ICMP 流量未被防火墙阻止。  现在，我们尝试将同一请求发送到不在使用的不同 UDP 端口：
+
+```
+>>> u.dport = 123 
+>>> request = (i/u)
+>>> reply = sr1(request,timeout=1,verbose=1) 
+Begin emission: Finished to send 1 packets.
+Received 5 packets, got 1 answers, remaining 0 packets 
+>>> reply.display() 
+###[ IP ]###
+  version= 4L
+  ihl= 5L
+  tos= 0xc0
+  len= 56
+  id= 62614
+  flags=
+  frag= 0L
+  ttl= 64
+  proto= icmp
+  chksum= 0xe412
+  src= 172.16.36.135
+  dst= 172.16.36.180
+  \options\ 
+###[ ICMP ]###
+     type= dest-unreach
+     code= port-unreachable
+     chksum= 0x9e72
+     unused= 0 
+###[ IP in ICMP ]###
+        version= 4L
+        ihl= 5L
+        tos= 0x0
+        len= 28
+        id= 1
+        flags=
+        frag= 0L
+        ttl= 64
+        proto= udp
+        chksum= 0xd974
+        src= 172.16.36.180
+        dst= 172.16.36.135
+        \options\
+###[ UDP in ICMP ]###
+           sport= domain       
+           dport= ntp        
+           len= 8          
+           chksum= 0x5dd2 
+```
+
+通过将请求目标更改为端口 123，然后重新发送它，我们现在会收到一个响应，表明目标端口不可达。如果检查此响应的源 IP 地址，你可以看到它是从发送原始请求的主机发送的。此响应随后表明原始目标 IP 地址处的主机处于活动状态。不幸的是，在这些情况下并不总是返回响应。这种技术的效率在很大程度上取决于你正在探测的系统及其配置。正因为如此，UDP 发现通常比 TCP 发现更难执行。它从来不会像发送带有单个标志的 TCP 数据包那么简单。在服务确实存在的情况下，通常需要服务特定的探测。幸运的是，有各种相当复杂的 UDP 扫描工具，可以使用各种 UDP 请求和服务特定的探针，来确定活动主机是否关联了任何给定的IP地址。
+
+### 工作原理
+
+这里提供的示例使用 UDP 和 TCP 发现方式。 我们能够使用 Scapy 来制作自定义请求，来使用这些协议识别活动主机。 在 TCP 的情况下，我们构造了自定义的 ACK 封包并将其发送到每个目标系统上的任意端口。 在接收到 RST 应答的情况下，系统被识别为活动的。 或者，空的 UDP 请求被发送到任意端口，来尝试请求 ICMP 端口不可达响应。 响应可用作活动系统的标识。 然后这些技术中的每一个都可以在 Python 脚本中使用，来对多个主机或地址范围执行发现。
+
