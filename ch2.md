@@ -1717,3 +1717,267 @@ Nmap done: 3 IP addresses (3 hosts up) scanned in 0.31 seconds
 ### 工作原理
 
 Nmap 用于执行 TCP 发现的技术的基本原理，与 Scapy 用于执行 TCP 发现的技术相同。 Nmap 向目标系统上的任意端口发送一系列 TCP ACK 数据包，并尝试请求 RST 响应作为活动系统的标识。 然而，Nmap 用于执行 UDP 发现的技术有点不同于 Scapy 的技术。 Nmap 不仅仅依赖于可能不一致或阻塞的 ICMP 主机不可达响应，而且通过向目标端口发送服务特定请求，尝试请求响应，来执行主机发现。
+
+## 2.13 使用 hping3 来探索第四层
+
+我们之前讨论过，使用`hping3`来执行第3层 ICMP 发现。 除了此功能，`hping3`还可以用于执行 UDP 和 TCP 主机发现。 然而，如前所述，`hping3`被开发用于执行定向请求，并且需要一些脚本来将其用作有效的扫描工具。 这个秘籍演示了如何使用`hping3`来执行 TCP 和 UDP 协议的第4层发现。
+
+### 准备
+
+使用`hping3`执行第四层发现不需要实验环境，因为 Internet 上的许多系统都将回复 TCP 和 UDP 请求。但是，强烈建议你只在您自己的实验环境中执行任何类型的网络扫描，除非你完全熟悉您受到任何管理机构施加的法律法规。如果你希望在实验环境中执行此技术，你需要至少有一个响应 TCP/UDP 请求的系统。在提供的示例中，使用 Linux 和 Windows 系统的组合。有关在本地实验环境中设置系统的更多信息，请参阅第一章中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。此外，本节还需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。有关编写脚本的更多信息，请参阅第一章中的“使用文本编辑器（VIM 和 Nano）”秘籍。
+
+### 操作步骤
+
+与 Nmap 不同，`hping3`通过隔离任务，能够轻易识别能够使用 UDP 探针发现的主机。 通过使用`--udp`选项指定 UDP 模式，可以传输 UDP 探针来尝试触发活动主机的回复：
+
+```
+root@KaliLinux:~# hping3 --udp 172.16.36.132 
+HPING 172.16.36.132 (eth1 172.16.36.132): udp mode set, 28 headers + 0 data bytes 
+ICMP Port Unreachable from ip=172.16.36.132 name=UNKNOWN   status=0 port=2792 seq=0 
+ICMP Port Unreachable from ip=172.16.36.132 name=UNKNOWN   status=0 port=2793 seq=1 
+ICMP Port Unreachable from ip=172.16.36.132 name=UNKNOWN   status=0 port=2794 seq=2 ^F
+ICMP Port Unreachable from ip=172.16.36.132 name=UNKNOWN   status=0 port=2795 seq=3 
+^C 
+--- 172.16.36.132 hping statistic --
+4 packets transmitted, 4 packets received, 0% packet loss 
+round-trip min/avg/max = 1.8/29.9/113.4 ms 
+```
+
+在提供的演示中，`Ctrl + C`用于停止进程。在 UDP 模式下使用`hping3`时，除非在初始命令中定义了特定数量的数据包，否则将无限继续发现。 为了定义要发送的尝试次数，应包含`-c`选项和一个表示所需尝试次数的整数值：
+
+
+```
+root@KaliLinux:~# hping3 --udp 172.16.36.132 -c 1 
+HPING 172.16.36.132 (eth1 172.16.36.132): udp mode set, 28 headers + 0 data bytes 
+ICMP Port Unreachable from ip=172.16.36.132 name=UNKNOWN   status=0 port=2422 seq=0
+
+--- 172.16.36.132 hping statistic --
+1 packets transmitted, 1 packets received, 0% packet loss 
+round-trip min/avg/max = 104.8/104.8/104.8 ms
+
+```
+
+虽然`hping3`默认情况下不支持扫描多个系统，但可以使用 bash 脚本轻易编写脚本。 为了做到这一点，我们必须首先确定与活动地址相关的输出，以及与非响应地址相关的输出之间的区别。 为此，我们应该在未分配主机的 IP 地址上使用相同的命令：
+
+```
+root@KaliLinux:~# hping3 --udp 172.16.36.131 -c 1 
+HPING 172.16.36.131 (eth1 172.16.36.131): udp mode set, 28 headers + 0 data bytes
+--- 172.16.36.131 hping statistic 
+--1 packets transmitted, 0 packets received, 100% packet loss 
+round-trip min/avg/max = 0.0/0.0/0.0 ms 
+```
+
+通过识别这些请求中的每一个的相关响应，我们可以确定出我们可以`grep`的唯一字符串; 此字符串能够隔离成功的发现尝试与失败的发现尝试。 在以前的请求中，你可能已经注意到，“ICMP 端口不可达”的短语仅在返回响应的情况下显示。 基于此，我们可以通过对`Unreachable`进行`grep`来提取成功的尝试。 为了确定此方法在脚本中的有效性，我们应该尝试连接两个先前的命令，然后将输出传递给我们的`grep`函数。 假设我们选择的字符串对于成功的尝试是唯一的，我们应该只看到与活动主机相关的输出：
+
+```
+root@KaliLiniux:~# hping3 --udp 172.16.36.132 -c 1; hping3 --udp 172.16.36.131 -c 1 | grep "Unreachable"HPING 172.16.36.132 (eth1 172.16.36.132): udp mode set, 28 headers + 0 data bytes 
+ICMP Port Unreachable from ip=172.16.36.132 name=UNKNOWN   status=0 port=2836 seq=0
+
+--- 172.16.36.132 hping statistic --
+1 packets transmitted, 1 packets received, 0% packet loss 
+round-trip min/avg/max = 115.2/115.2/115.2 ms
+--- 172.16.36.131 hping statistic --
+1 packets transmitted, 0 packets received, 100% packet loss 
+round-trip min/avg/max = 0.0/0.0/0.0 ms
+
+```
+
+尽管产生了期望的结果，在这种情况下，`grep`函数似乎不能有效用于输出。 由于`hping3`中的输出显示处理，它难以通过管道传递到`grep`函数，并只提取所需的行，我们可以尝试通过其他方式解决这个问题。 具体来说，我们将尝试确定输出是否可以重定向到一个文件，然后我们可以直接从文件中`grep`。 为此，我们尝试将先前使用的两个命令的输出传递给`handle.txt`文件：
+
+```
+root@KaliLinux:~# hping3 --udp 172.16.36.132 -c 1 >> handle.txt
+
+--- 172.16.36.132 hping statistic --
+1 packets transmitted, 1 packets received, 0% packet loss 
+round-trip min/avg/max = 28.6/28.6/28.6 ms 
+root@KaliLinux:~# hping3 --udp 172.16.36.131 -c 1 >> handle.txt
+
+--- 172.16.36.131 hping statistic --
+1 packets transmitted, 0 packets received, 100% packet loss 
+round-trip min/avg/max = 0.0/0.0/0.0 ms 
+root@KaliLinux:~# ls Desktop  handle.txt 
+root@KaliLinux:~# cat handle.txt 
+HPING 172.16.36.132 (eth1 172.16.36.132): udp mode set, 28 headers + 0 data bytes 
+ICMP Port Unreachable from ip=172.16.36.132 name=UNKNOWN   status=0 port=2121 seq=0 
+HPING 172.16.36.131 (eth1 172.16.36.131): udp mode set, 28 headers + 0 data bytes
+```
+
+虽然这种尝试并不完全成功，因为输出没有完全重定向到文件，我们可以看到通过读取文件中的输出，足以创建一个有效的脚本。 具体来说，我们能够重定向一个唯一的行，该行只与成功的`ping`尝试相关联，并且包含该行中相应的 IP 地址。 要验证此解决方法是否可行，我们需要尝试循环访问`/ 24`范围中的每个地址，然后将结果传递到`handle.txt`文件：
+
+```
+root@KaliLinux:~# for addr in $(seq 1 254); do hping3 --udp 172.16.36.$addr -c 1 >> handle.txt; done
+--- 172.16.36.1 hping statistic --
+1 packets transmitted, 0 packets received, 100% packet loss 
+round-trip min/avg/max = 0.0/0.0/0.0 ms
+
+--- 172.16.36.2 hping statistic --
+1 packets transmitted, 0 packets received, 100% packet loss 
+round-trip min/avg/max = 0.0/0.0/0.0 ms
+--- 172.16.36.3 hping statistic --
+1 packets transmitted, 0 packets received, 100% packet loss 
+round-trip min/avg/max = 0.0/0.0/0.0 ms 
+```
+
+通过这样做，仍然有大量的输出（提供的输出为了方便而被截断）包含未重定向到文件的输出。 但是，以下脚本的成功不取决于初始循环的过多输出，而是取决于从输出文件中提取必要信息的能力：
+
+```
+root@KaliLinux:~# ls 
+Desktop  handle.txt 
+root@KaliLinux:~# grep Unreachable handle.txt 
+ICMP Port Unreachable from ip=172.16.36.132 HPING 172.16.36.133 (eth1 172.16.36.133): udp mode set, 28 headers + 0 data bytes 
+ICMP Port Unreachable from ip=172.16.36.135 HPING 172.16.36.136 (eth1 172.16.36.136): udp mode set, 28 headers + 0 data bytes 
+```
+
+完成扫描循环后，可以使用`ls`命令在当前目录中确定输出文件，然后可以直接从此文件中对`Unreachable`的唯一字符串进行`grep`，如下一个命令所示。 在输出中，我们可以看到，列出了通过 UDP 探测发现的每个活动主机。 此时，剩下的唯一任务是从此输出中提取 IP 地址，然后将此整个过程重新创建为单个功能脚本：
+
+```
+root@KaliLinux:~# grep Unreachable handle.txt 
+ICMP Port Unreachable from ip=172.16.36.132 
+HPING 172.16.36.133 (eth1 172.16.36.133): udp mode set, 28 headers + 0 data bytes 
+ICMP Port Unreachable from ip=172.16.36.135 
+HPING 172.16.36.136 (eth1 172.16.36.136): udp mode set, 28 headers + 0 data bytes 
+root@KaliLinux:~# grep Unreachable handle.txt | cut -d " " -f 5 ip=172.16.36.132 ip=172.16.36.135 
+root@KaliLinux:~# grep Unreachable handle.txt | cut -d " " -f 5 | cut -d "=" -f 2 172.16.36.132 172.16.36.135
+
+
+```
+
+通过将输出使用管道连接到一系列`cut`函数，我们可以从输出中提取 IP 地址。 现在我们已经成功地确定了一种方法，来扫描多个主机并轻易识别结果，我们应该将其集成到一个脚本中。 将所有这些操作组合在一起的功能脚本的示例如下：
+
+```sh
+#!/bin/bash
+if [ "$#" -ne 1 ]; then 
+    echo "Usage - ./udp_sweep.sh [/24 network address]" 
+    echo "Example - ./udp_sweep.sh 172.16.36.0" 
+    echo "Example will perform a UDP ping sweep of the 172.16.36.0/24 network and output to an output.txt file" 
+    exit 
+fi
+
+prefix=$(echo $1 | cut -d '.' -f 1-3)
+
+for addr in $(seq 1 254); do 
+    hping3 $prefix.$addr --udp -c 1 >> handle.txt; 
+done
+
+grep Unreachable handle.txt | cut -d " " -f 5 | cut -d "=" -f 2 >> output.txt 
+rm handle.txt 
+```
+
+在提供的 bash 脚本中，第一行定义了 bash 解释器的位置。 接下来的代码块执行测试来确定是否提供了预期的一个参数。 这通过评估提供的参数的数量是否不等于 1 来确定。如果未提供预期参数，则输出脚本的用法，并且退出脚本。 用法输出表明，脚本需要接受`/ 24`网络地址作为参数。 下一行代码从提供的网络地址中提取网络前缀。 例如，如果提供的网络地址是`192.168.11.0`，则前缀变量将被赋值为`192.168.11`。 然后对`/ 24`范围内的每个地址执行`hping3`操作，并将每个任务的结果输出放入`handle.txt`文件中。
+
+```
+root@KaliLinux:~# ./udp_sweep.sh 
+Usage - ./udp_sweep.sh [/24 network address] 
+Example - ./udp_sweep.sh 172.16.36.0 
+Example will perform a UDP ping sweep of the 172.16.36.0/24 network and output to an output.txt file
+root@KaliLinux:~# ./udp_sweep.sh 172.16.36.0
+--- 172.16.36.1 hping statistic --
+1 packets transmitted, 0 packets received, 100% packet loss 
+round-trip min/avg/max = 0.0/0.0/0.0 ms
+--- 172.16.36.2 hping statistic --
+1 packets transmitted, 0 packets received, 100% packet loss 
+round-trip min/avg/max = 0.0/0.0/0.0 ms
+--- 172.16.36.3 hping statistic --
+1 packets transmitted, 0 packets received, 100% packet loss 
+round-trip min/avg/max = 0.0/0.0/0.0 ms
+                *** {TRUNCATED} ***
+root@KaliLinux:~# ls output.txt 
+output.txt 
+root@KaliLinux:~# cat output.txt 
+172.16.36.132 
+172.16.36.135 
+172.16.36.253 
+```
+
+当脚本运行时，你仍然会看到在初始循环任务时看到的大量输出。 幸运的是，你发现的主机列表不会在此输出中消失，因为它每次都会写入你的输出文件。
+
+你还可以使用`hping3`执行 TCP 发现。 TCP 模式实际上是`hping3`使用的默认发现模式，并且可以通过将要扫描的 IP 地址传递到`hping3`来使用此模式：
+
+```
+root@KaliLinux:~# hping3 172.16.36.132 
+HPING 172.16.36.132 (eth1 172.16.36.132): NO FLAGS are set, 40 headers + 0 data bytes 
+len=46 ip=172.16.36.132 ttl=64 DF id=0 sport=0 flags=RA seq=0 win=0 rtt=3.7 ms 
+len=46 ip=172.16.36.132 ttl=64 DF id=0 sport=0 flags=RA seq=1 win=0 rtt=0.7 ms 
+len=46 ip=172.16.36.132 ttl=64 DF id=0 sport=0 flags=RA seq=2 win=0 rtt=2.6 ms 
+^C 
+--- 172.16.36.132 hping statistic --
+3 packets transmitted, 3 packets received, 0% packet loss 
+round-trip min/avg/max = 0.7/2.3/3.7 ms
+
+```
+
+我们之前创建一个bash脚本循环访问`/ 24`网络并使用`hping3`执行 UDP 发现，与之相似，我们可以为 TCP 发现创建一个类似的脚本。 首先，必须确定唯一短语，它存在于活动主机的相关输出中，但不在非响应主机的相关输出中。 为此，我们必须评估每个响应：
+
+```
+root@KaliLinux:~# hping3 172.16.36.132 -c 1 
+HPING 172.16.36.132 (eth1 172.16.36.132): NO FLAGS are set, 40 headers + 0 data bytes 
+len=46 ip=172.16.36.132 ttl=64 DF id=0 sport=0 flags=RA seq=0 win=0 rtt=3.4 ms
+--- 172.16.36.132 hping statistic --
+1 packets transmitted, 1 packets received, 0% packet loss 
+round-trip min/avg/max = 3.4/3.4/3.4 ms 
+root@KaliLinux:~# hping3 172.16.36.131 -c 1 
+HPING 172.16.36.131 (eth1 172.16.36.131): NO FLAGS are set, 40 headers + 0 data bytes
+--- 172.16.36.131 hping statistic --
+1 packets transmitted, 0 packets received, 100% packet loss 
+round-trip min/avg/max = 0.0/0.0/0.0 ms 
+```
+
+在这种情况下，长度值仅存在于活动主机的相关输出中。 再一次，我们可以开发一个脚本，将输出重定向到临时`handle`文件，然后`grep`此文件的输出来确定活动主机：
+
+```sh
+#!/bin/bash
+if [ "$#" -ne 1 ]; then 
+    echo "Usage - ./tcp_sweep.sh [/24 network address]" 
+    echo "Example - ./tcp_sweep.sh 172.16.36.0" 
+    echo "Example will perform a TCP ping sweep of the 172.16.36.0/24 network and output to an output.txt file" 
+    exit 
+fi
+
+prefix=$(echo $1 | cut -d '.' -f 1-3)
+
+for addr in $(seq 1 254); do 
+    hping3 $prefix.$addr -c 1 >> handle.txt; 
+done
+
+grep len handle.txt | cut -d " " -f 2 | cut -d "=" -f 2 >> output.txt
+ rm handle.txt
+
+```
+
+此脚本的执行方式类似于 UDP 发现脚本。 唯一的区别是在循环序列中执行的命令，`grep`值和提取 IP 地址的过程。 执行后，此脚本将生成一个`output.txt`文件，其中将包含使用 TCP 发现方式来发现的主机的相关 IP 地址列表。
+
+```
+root@KaliLinux:~# ./tcp_sweep.sh 
+Usage - ./tcp_sweep.sh [/24 network address] 
+Example - ./tcp_sweep.sh 172.16.36.0 
+Example will perform a TCP ping sweep of the 172.16.36.0/24 network and output to an output.txt file 
+root@KaliLinux:~# ./tcp_sweep.sh 172.16.36.0
+--- 172.16.36.1 hping statistic --
+1 packets transmitted, 1 packets received, 0% packet loss 
+round-trip min/avg/max = 0.4/0.4/0.4 ms
+--- 172.16.36.2 hping statistic --
+1 packets transmitted, 1 packets received, 0% packet loss 
+round-trip min/avg/max = 0.6/0.6/0.6 ms
+--- 172.16.36.3 hping statistic --
+1 packets transmitted, 0 packets received, 100% packet loss 
+round-trip min/avg/max = 0.0/0.0/0.0 ms
+                    *** {TRUNCATED} *** 
+```
+
+你可以使用`ls`命令确认输出文件是否已写入执行目录，并使用`cat`命令读取其内容。 这可以在以下示例中看到：
+
+```
+root@KaliLinux:~# ls output.txt 
+output.txt 
+root@KaliLinux:~# cat output.txt 
+172.16.36.1 
+172.16.36.2 
+172.16.36.132 
+172.16.36.135 
+172.16.36.253
+
+```
+
+### 工作原理
+
+在提供的示例中，`hping3`使用 ICMP 主机不可达响应，来标识具有 UDP 请求的活动主机，并使用空标志扫描来标识具有 TCP 请求的活动主机。 对于 UDP 发现，一系列空 UDP 请求被发送到任意目标端口，来试图请求响应。 对于 TCP 发现，一系列 TCP 请求被发送到目的端口 0，并没有激活标志位。 所提供的示例请求激活了 ACK + RST 标志的响应。 这些任务中的每一个都传递给了 bash 中的循环，来在多个主机或一系列地址上执行扫描。
