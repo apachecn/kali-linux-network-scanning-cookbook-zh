@@ -862,3 +862,80 @@ root@KaliLinux:~# cat output.txt 172.16.36.2
 
 Ping 是 IT 行业中众所周知的工具，其现有功能能用于识别活动主机。 然而，它的目的是为了发现单个主机是否存活，而不是作为扫描工具。 这个秘籍中的 bash 脚本基本上与在`/ 24` CIDR范围中对每个可能的 IP 地址使用 ping 相同。 但是，我们不需要手动执行这种繁琐的任务，bash 允许我们通过循环传递任务序列来快速，轻松地执行此任务。
 
+## 2.8 使用 Nmap 发现第三层
+
+Nmap 是 Kali Linux 中最强大和最通用的扫描工具之一。 因此，毫不奇怪，Nmap 也支持 ICMP 发现扫描。 该秘籍演示了如何使用 Nmap 在远程主机上执行第三层发现。
+
+### 准备
+
+使用 Nmap 执行第三层发现不需要实验环境，因为 Internet 上的许多系统都将回复 ICMP 回显请求。但是，强烈建议你只在您自己的实验环境中执行任何类型的网络扫描，除非你完全熟悉您受到任何管理机构施加的法律法规。如果你希望在实验环境中执行此技术，你需要至少有一个响应 ICMP 请求的系统。在提供的示例中，使用 Linux 和 Windows 系统的组合。有关在本地实验环境中设置系统的更多信息，请参阅第一章中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。此外，本节还需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。有关编写脚本的更多信息，请参阅第一章中的“使用文本编辑器（VIM 和 Nano）”秘籍。
+
+### 操作步骤
+
+Nmap是一种自适应工具，它可以按需自动调整，并执行第2层，第3层或第4层发现。 如果`-sn`选项在 Nmap 中用于扫描本地网段上不存在的 IP 地址，则 ICMP 回显请求将用于确定主机是否处于活动状态和是否响应。 为了对单个目标执行 ICMP 扫描，请使用带有`-sn`选项的Nmap，并传递要扫描的 IP 地址作为参数：
+
+```
+root@KaliLinux:~# nmap -sn 74.125.228.1
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-16 23:05 EST 
+Nmap scan report for iad23s05-in-f1.1e100.net (74.125.228.1) 
+Host is up (0.00013s latency). 
+Nmap done: 1 IP address (1 host up) scanned in 0.02 seconds 
+```
+
+此命令的输出表明了设备是否已启动，还会提供有关所执行扫描的详细信息。 此外请注意，系统名称也已确定。 Nmap 还执行 DNS 解析来在扫描输出中提供此信息。 它还可以用于使用破折号符号扫描 IP 地址连续范围。 Nmap 默认情况下是多线程的，并且并行运行多个进程。 因此，Nmap 在返回扫描结果时非常快。 看看下面的命令：
+
+```
+root@KaliLinux:~# nmap -sn 74.125.228.1-255
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-16 23:14 EST 
+Nmap scan report for iad23s05-in-f1.1e100.net (74.125.228.1) 
+Host is up (0.00012s latency). 
+Nmap scan report for iad23s05-in-f2.1e100.net (74.125.228.2) 
+Host is up (0.0064s latency). 
+Nmap scan report for iad23s05-in-f3.1e100.net (74.125.228.3) 
+Host is up (0.0070s latency). 
+Nmap scan report for iad23s05-in-f4.1e100.net (74.125.228.4) 
+Host is up (0.00015s latency). 
+Nmap scan report for iad23s05-in-f5.1e100.net (74.125.228.5) 
+Host is up (0.00013s latency). 
+Nmap scan report for iad23s05-in-f6.1e100.net (74.125.228.6) 
+Host is up (0.00012s latency). 
+Nmap scan report for iad23s05-in-f7.1e100.net (74.125.228.7) 
+Host is up (0.00012s latency). 
+Nmap scan report for iad23s05-in-f8.1e100.net (74.125.228.8) 
+Host is up (0.00012s latency). 
+                    *** {TRUNCATED} ***
+```
+
+在提供的示例中，Nmap 用于扫描整个`/ 24`网络范围。 为了方便查看，此命令的输出被截断。 通过使用 Wireshark 分析通过接口的流量，你可能会注意到这些地址没有按顺序扫描。 这可以在以下屏幕截图中看到。 这是 Nmap 的多线程特性的进一步证据，并展示了当其他进程完成时，如何从队列中的地址启动进程：
+
+![](img/2-8-1.jpg)
+
+或者，Nmap 也可用于扫描输入文本文件中的 IP 地址。 这可以使用`-iL`选项，后跟文件或文件路径的名称来完成：
+
+```
+root@KaliLinux:~# cat iplist.txt 
+74.125.228.13 74.125.228.28 
+74.125.228.47 74.125.228.144 
+74.125.228.162 74.125.228.211 
+root@KaliLinux:~# nmap -iL iplist.txt -sn
+Starting Nmap 6.25 ( http://nmap.org ) at 2013-12-16 23:14 EST 
+Nmap scan report for iad23s05-in-f13.1e100.net (74.125.228.13) 
+Host is up (0.00010s latency). 
+Nmap scan report for iad23s05-in-f28.1e100.net (74.125.228.28) 
+Host is up (0.0069s latency). 
+Nmap scan report for iad23s06-in-f15.1e100.net (74.125.228.47) 
+Host is up (0.0068s latency). 
+Nmap scan report for iad23s17-in-f16.1e100.net (74.125.228.144) 
+Host is up (0.00010s latency). 
+Nmap scan report for iad23s18-in-f2.1e100.net (74.125.228.162) 
+Host is up (0.0077s latency). 
+Nmap scan report for 74.125.228.211 
+Host is up (0.00022s latency). 
+Nmap done: 6 IP addresses (6 hosts up) scanned in 0.04 seconds
+```
+
+在提供的示例中，执行目录中存在六个 IP 地址的列表。 然后将此列表输入到 Nmap 中，并扫描每个列出的地址来尝试识别活动主机。
+
+### 工作原理
+
+Nmap 通过对提供的范围或文本文件中的每个 IP 地址发出 ICMP 回显请求，来执行第3层扫描。 由于 Nmap 是一个多线程工具，所以它会并行发送多个请求，结果会很快返回给用户。 由于 Nmap 的发现功能是自适应的，它只会使用 ICMP 发现，如果 ARP 发现无法有效定位本地子网上的主机。 或者，如果 ARP 发现或 ICMP 发现都不能有效识别给定 IP 地址上的活动主机时，那么将采第四层发现技术。
