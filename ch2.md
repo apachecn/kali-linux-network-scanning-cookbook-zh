@@ -12,7 +12,7 @@ ARPing 是一个命令行网络工具，具有类似于常用的`ping`工具的�
 
 ### 准备
 
-要使用 ARPing 执行 ARP 发现，你将需要在 LAN 上至少拥有一个响应 ARP 请求的系统。 提供的示例使用 Linux 和 Windows 系统的组合。 有关在本地实验环境中设置系统的更多信息，请参阅第一章入中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
+要使用 ARPing 执行 ARP 发现，你需要在 LAN 上至少拥有一个响应 ARP 请求的系统。 提供的示例使用 Linux 和 Windows 系统的组合。 有关在本地实验环境中设置系统的更多信息，请参阅第一章入中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
 
 此外，本节需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。 有关编写脚本的更多信息，请参阅第一章入门中的“使用文本编辑器（VIM 和 Nano）”秘籍。
 
@@ -172,7 +172,7 @@ ARPing 是一个工具，用于验证单个主机是否在线。 然而，它的
 
 ### 准备
 
-要使用 ARPing 执行 ARP 发现，你将需要在 LAN 上至少拥有一个响应 ARP 请求的系统。 提供的示例使用 Linux 和 Windows 系统的组合。 有关在本地实验环境中设置系统的更多信息，请参阅第一章入中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
+要使用 ARPing 执行 ARP 发现，你需要在 LAN 上至少拥有一个响应 ARP 请求的系统。 提供的示例使用 Linux 和 Windows 系统的组合。 有关在本地实验环境中设置系统的更多信息，请参阅第一章入中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
 
 ### 操作步骤
 
@@ -283,7 +283,7 @@ NetDiscover是一个工具，用于通过 ARP 主动和被动分析识别网络�
 
 ### 准备
 
-要使用 NetDiscover 执行 ARP 发现，你将需要在 LAN 上至少拥有一个响应 ARP 请求的系统。 提供的示例使用 Linux 和 Windows 系统的组合。 有关在本地实验环境中设置系统的更多信息，请参阅第一章入中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
+要使用 NetDiscover 执行 ARP 发现，你需要在 LAN 上至少拥有一个响应 ARP 请求的系统。 提供的示例使用 Linux 和 Windows 系统的组合。 有关在本地实验环境中设置系统的更多信息，请参阅第一章入中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
 
 ### 操作步骤
 
@@ -339,3 +339,136 @@ IP            At MAC Address      Count  Len   MAC Vendor
 ### 工作原理
 
 NetDiscover ARP 发现的基本原理与我们之前所讨论的第2层发现方法的基本相同。 这个工具和我们讨论的其他一些工具的主要区别，包括被动发现模式，以及在输出中包含 MAC 厂商。 在大多数情况下，被动模式在交换网络上是无用的，因为 ARP 响应的接收仍然需要与发现的客户端执行一些交互，尽管它们独立于 NetDiscover 工具。 然而，重要的是理解该特征，及其它们在例如集线器或无线网络的广播网络中可能会有用。 NetDiscover 通过评估返回的 MAC 地址的前半部分（前3个字节/ 24位）来识别 MAC 厂商。 这部分地址标识网络接口的制造商，并且通常是设备其余部分的硬件制造商的良好标识。
+
+## 2.5 使用 Metasploit 探索第二层
+
+Metasploit 主要是漏洞利用工具，这个功能将在接下来的章节中详细讨论。 然而，除了其主要功能之外，Metasploit 还有一些辅助模块，可用于各种扫描和信息收集任务。 特别是，由一个辅助模块可以用于在本地子网上执行 ARP 扫描。 这对许多人都有帮助，因为 Metasploit 是大多数渗透测试人员熟悉的工具，并且将该功能集成到 Metasploit 中，减少了给定测试阶段内所需的工具总数。 这个特定的秘籍演示了如何使用 Metasploit 来执行 ARP 发现。
+
+### 准备
+
+要使用 Metasploit 执行 ARP 发现，你需要在 LAN 上至少拥有一个响应 ARP 请求的系统。 提供的示例使用 Linux 和 Windows 系统的组合。 有关在本地实验环境中设置系统的更多信息，请参阅第一章入中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
+
+### 操作步骤
+
+虽然经常被认为是一个利用框架，Metasploit 也有大量的辅助模块，可用于扫描和信息收集。 特别是有一个可以用于执行第二层发现的辅助模块。 要启动 Metasploit 框架，请使用`msfconsole`命令。 然后，使用命令结合所需的模块来配置扫描：
+
+```
+root@KaliLinux:~# msfconsole
+
+MMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMMM 
+MMMMMMMMMMM                MMMMMMMMMM 
+MMMN$                           vMMMM 
+MMMNl  MMMMM             MMMMM  JMMMM 
+MMMNl  MMMMMMMN       NMMMMMMM  JMMMM 
+MMMNl  MMMMMMMMMNmmmNMMMMMMMMM  JMMMM 
+MMMNI  MMMMMMMMMMMMMMMMMMMMMMM  jMMMM 
+MMMNI  MMMMMMMMMMMMMMMMMMMMMMM  jMMMM 
+MMMNI  MMMMM   MMMMMMM   MMMMM  jMMMM 
+MMMNI  MMMMM   MMMMMMM   MMMMM  jMMMM 
+MMMNI  MMMNM   MMMMMMM   MMMMM  jMMMM 
+MMMNI  WMMMM   MMMMMMM   MMMM#  JMMMM 
+MMMMR  ?MMNM             MMMMM .dMMMM 
+MMMMNm `?MMM             MMMM` dMMMMM 
+MMMMMMN  ?MM             MM?  NMMMMMN 
+MMMMMMMMNe                 JMMMMMNMMM 
+MMMMMMMMMMNm,            eMMMMMNMMNMM 
+MMMMNNMNMMMMMNx        MMMMMMNMMNMMNM MMMMMMMMNMMNMMMMm+..+MMNMMNMNMMNMMNMM
+        http://metasploit.pro
+        
+Frustrated with proxy pivoting? Upgrade to layer-2 VPN pivoting with Metasploit Pro -- type 'go_pro' to launch it now.
+
+       =[ metasploit v4.6.0-dev [core:4.6 api:1.0] 
++ -- --=[ 1053 exploits - 590 auxiliary - 174 post 
++ -- --=[ 275 payloads - 28 encoders - 8 nops
+
+msf > use auxiliary/scanner/discovery/arp_sweep 
+msf  auxiliary(arp_sweep) >
+
+```
+
+选择模块后，可以使用`show options`命令查看可配置选项：
+
+```
+msf  auxiliary(arp_sweep) > show options
+
+Module options (auxiliary/scanner/discovery/arp_sweep):
+   
+   Name       Current Setting  Required  Description   
+   ----       ---------------  --------  ----------   
+   INTERFACE                   no        The name of the interface   
+   RHOSTS                      yes       The target address range or CIDR identifier   
+   SHOST                       no        Source IP Address   
+   SMAC                        no        Source MAC Address   
+   THREADS    1                yes       The number of concurrent threads   
+   TIMEOUT    5                yes       The number of seconds to wait for new data
+```
+   
+这些配置选项指定要扫描的目标，扫描系统和扫描设置的信息。 可以通过检查扫描系统的接口配置来收集用于该特定扫描的大多数信息。 我们可以十分方便地在 Metasploit Framework 控制台中可以传入系统 shell 命令。 在以下示例中，我们在不离开 Metasploit Framework 控制台界面的情况下，进行系统调用来执行`ifconfig`：
+
+```
+msf  auxiliary(arp_sweep) > ifconfig eth1 
+
+[*] exec: ifconfig eth1
+
+eth1      Link encap:Ethernet  HWaddr 00:0c:29:09:c3:79            
+          inet addr:172.16.36.180  Bcast:172.16.36.255  Mask:255.255.255.0          
+          inet6 addr: fe80::20c:29ff:fe09:c379/64 Scope:Link          UP BROADCAST RUNNING MULTICAST  MTU:1500  Metric:1          RX packets:1576971 errors:1 dropped:0 overruns:0 frame:0     
+          TX packets:1157669 errors:0 dropped:0 overruns:0 carrier:0      
+          collisions:0 txqueuelen:1000        
+          RX bytes:226795966 (216.2 MiB)  TX bytes:109929055 (104.8 MiB)        
+          Interrupt:19 Base address:0x2080
+
+```
+
+用于此扫描的接口是`eth1`。 由于第二层扫描仅能够有效地识别本地子网上的活动主机，因此我们应该查看扫描系统 IP 和子网掩码以确定要扫描的范围。 在这种情况下，IP 地址和子网掩码显示，我们应扫描`172.16.36.0/24`范围。 此外，可以在这些配置中识别扫描系统的源 IP 地址和 MAC 地址。 要在 Metasploit 中定义配置，请使用`set`命令，然后是要定义的变量，然后是要赋的值：
+
+```
+msf  auxiliary(arp_sweep) > set interface eth1 
+interface => eth1 
+msf  auxiliary(arp_sweep) > set RHOSTS 172.16.36.0/24 
+RHOSTS => 172.16.36.0/24 
+msf  auxiliary(arp_sweep) > set SHOST 172.16.36.180 
+SHOST => 172.16.36.180 
+msf  auxiliary(arp_sweep) > set SMAC 00:0c:29:09:c3:79 
+SMAC => 00:0c:29:09:c3:79 
+msf  auxiliary(arp_sweep) > set THREADS 20 
+THREADS => 20 
+msf  auxiliary(arp_sweep) > set TIMEOUT 1 
+TIMEOUT => 1 
+```
+
+设置扫描配置后，可以使用`show options`命令再次查看设置。 现在应显示之前设置的所有值：
+
+```
+msf  auxiliary(arp_sweep) > show options
+
+Module options (auxiliary/scanner/discovery/arp_sweep):
+   
+   Name       Current Setting    Required  Description   
+   ----       ---------------    --------  ----------   
+   INTERFACE  eth1               no        The name of the interface   
+   RHOSTS     172.16.36.0/24     yes       The target address range or CIDR identifier   
+   SHOST      172.16.36.180      no        Source IP Address   
+   SMAC       00:0c:29:09:c3:79  no        Source MAC Address   
+   THREADS    20                 yes       The number of concurrent threads   
+   TIMEOUT    1                  yes       The number of seconds to wait for new data
+```
+
+在验证所有设置配置正确后，可以使用`run`命令启动扫描。 此特定模块将打印出使用 ARP 发现的任何活动主机。 它还会识别网卡（NIC）供应商，它由发现的主机的 MAC 地址中的前3个字节定义：
+
+```
+msf  auxiliary(arp_sweep) > run
+
+[*] 172.16.36.1 appears to be up (VMware, Inc.). 
+[*] 172.16.36.2 appears to be up (VMware, Inc.). 
+[*] 172.16.36.132 appears to be up (VMware, Inc.). 
+[*] 172.16.36.135 appears to be up (VMware, Inc.). 
+[*] 172.16.36.254 appears to be up (VMware, Inc.). 
+[*] Scanned 256 of 256 hosts (100% complete) 
+[*] Auxiliary module execution completed
+
+```
+
+### 工作原理
+
+Metasploit 执行 ARP 发现的基本原理是相同的：广播一系列 ARP 请求，记录并输出 ARP 响应。 Metasploit  辅助模块的输出提供所有活动系统的 IP 地址，然后，它还在括号中提供 MAC 厂商名称。
