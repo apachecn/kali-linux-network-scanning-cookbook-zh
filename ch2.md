@@ -862,6 +862,301 @@ root@KaliLinux:~# cat output.txt 172.16.36.2
 
 Ping 是 IT 行业中众所周知的工具，其现有功能能用于识别活动主机。 然而，它的目的是为了发现单个主机是否存活，而不是作为扫描工具。 这个秘籍中的 bash 脚本基本上与在`/ 24` CIDR范围中对每个可能的 IP 地址使用 ping 相同。 但是，我们不需要手动执行这种繁琐的任务，bash 允许我们通过循环传递任务序列来快速，轻松地执行此任务。
 
+## 2.7 使用 Scapy 发现第三层
+
+Scapy 是一种工具，允许用户制作并向网络中注入自定义数据包。 此工具可以用于构建 ICMP 协议请求，并将它们注入网络来分析响应。 这个特定的秘籍演示了如何使用 Scapy 在远程主机上执行第3层发现。
+
+### 准备
+
+使用 Scapy 执行第三层发现不需要实验环境，因为 Internet 上的许多系统都将回复 ICMP 回显请求。但是，强烈建议你只在您自己的实验环境中执行任何类型的网络扫描，除非你完全熟悉您受到任何管理机构施加的法律法规。如果你希望在实验环境中执行此技术，你需要至少有一个响应 ICMP 请求的系统。在提供的示例中，使用 Linux 和 Windows 系统的组合。有关在本地实验环境中设置系统的更多信息，请参阅第一章中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。此外，本节还需要使用文本编辑器（如 VIM 或 Nano）将脚本写入文件系统。有关编写脚本的更多信息，请参阅第一章中的“使用文本编辑器（VIM 和 Nano）”秘籍。
+
+### 操作步骤
+
+为了使用 Scapy 发送 ICMP 回显请求，我们需要开始堆叠层级来发送请求。 堆叠数据包时的一个好的经验法则是,通过 OSI 按照的各层进行处理。 你可以通过使用斜杠分隔每个层级来堆叠多个层级。 为了生成 ICMP 回显请求，IP 层需要与 ICMP 请求堆叠。 为了开始，请使用`scapy`命令打开 Scapy 交互式控制台，然后将`IP`对象赋给变量：
+
+```
+root@KaliLinux:~# scapy Welcome to Scapy (2.2.0) 
+>>> ip = IP() 
+>>> ip.display() 
+###[ IP ]###
+  version= 4
+  ihl= None
+  tos= 0x0
+  len= None
+  id= 1
+  flags=
+  frag= 0
+  ttl= 64
+  proto= ip
+  chksum= None
+  src= 127.0.0.1
+  dst= 127.0.0.1
+  \options\ 
+```
+
+将新值赋给目标地址属性后，可以通过再次调用`display()`函数来验证更改。 请注意，当目标 IP 地址值更改为任何其他值时，源地址也会从回送地址自动更新为与默认接口关联的 IP 地址。 现在 `IP` 对象的属性已经适当修改了，我们将需要在我们的封包栈中创建第二层。 要添加到栈的下一个层是 ICMP 层，我们将其赋给单独的变量：
+
+```
+>>> ping = ICMP() 
+>>> ping.display() 
+###[ ICMP ]###
+  type= echo-request  
+  code= 0  
+  chksum= None  
+  id= 0x0  
+  seq= 0x0 
+```
+
+在所提供的示例中，ICMP 对象使用`ping`变量名称初始化。 然后可以调用`display()`函数来显示 ICMP 属性的默认配置。 为了执行 ICMP 回显请求，默认配置就足够了。 现在两个层都已正确配置，它们可以堆叠来准备发送。 在 Scapy 中，可以通过使用斜杠分隔每个层级来堆叠层级。 看看下面的命令集：
+
+```
+>>> ping_request = (ip/ping) 
+>>> ping_request.display() 
+###[ IP ]###
+  version= 4
+  ihl= None
+  tos= 0x0
+  len= None
+  id= 1
+  flags=
+  frag= 0
+  ttl= 64
+  proto= icmp
+  chksum= None
+  src= 172.16.36.180
+  dst= 172.16.36.135
+  \options\
+###[ ICMP ]###
+     type= echo-request
+     code= 0
+     chksum= None
+     id= 0x0
+     seq= 0x0
+```
+
+一旦堆叠层级被赋给一个变量，`display()`函数可以显示整个栈。 以这种方式堆叠层的过程通常被称为数据报封装。 现在已经堆叠了层级，并已经准备好发送请求。 这可以使用 Scapy 中的`sr1()`函数来完成：
+
+```
+>>> ping_reply = sr1(ping_request) 
+..Begin emission:
+.........
+Finished to send 1 packets. 
+...* 
+Received 15 packets, got 1 answers, remaining 0 packets 
+>>> ping_reply.display() 
+###[ IP ]###
+  version= 4L
+  ihl= 5L
+  tos= 0x0
+  len= 28
+  id= 62577
+  flags=
+  frag= 0L
+  ttl= 64
+  proto= icmp
+  chksum= 0xe513
+  src= 172.16.36.135
+  dst= 172.16.36.180
+  \options\ 
+###[ ICMP ]###
+     type= echo-reply
+     code= 0
+     chksum= 0xffff
+     id= 0x0
+     seq= 0x0 
+###[ Padding ]###
+        load= '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\ x00\x00\x00\x00'
+
+```
+
+在提供的示例中，`sr1()`函数赋给了`ping_reply`变量。 这将执行该函数，然后将结果传递给此变量。 在接收到响应后，在`ping_reply`变量上调用`display()`函数来查看响应的内容。请注意，此数据包是从我们发送初始请求的主机发送的，目标地址是 Kali 系统的 IP 地址。 另外，注意响应的 ICMP 类型是回应应答。 基于此示例，使用 Scapy 发送和接收 ICMP 的过程看起来很有用，但如果你尝试对非响应的目标地址使用相同的步骤，你会很快注意到问题：
+
+```
+>>> ip.dst = "172.16.36.136" 
+>>> ping_request = (ip/ping) 
+>>> ping_reply = sr1(ping_request) 
+.Begin emission: 
+......................................................................... ......................................................................... ........... 
+Finished to send 1 packets 
+.................................. .................................................................... 
+                        *** {TRUNCATED} *** 
+```
+
+示例输出被截断，但此输出应该无限继续，直到你使用`Ctrl + C`强制关闭。不向函数提供超时值，`sr1()`函数会继续监听，直到接收到响应。 如果主机不是活动的，或者如果 IP 地址没有与任何主机关联，则不会发送响应，并且该功能也不会退出。 为了在脚本中有效使用此函数，应定义超时值：
+
+```
+>>> ping_reply = sr1(ping_request, timeout=1) 
+.Begin emission: 
+....................................................................... ....................................................................... 
+Finished to send 1 packets. 
+.................................... 
+Received 3982 packets, got 0 answers, remaining 1 packets
+```
+
+通过提供超时值作为传递给`sr1()`函数的第二个参数，如果在指定的秒数内没有收到响应，进程将退出。 在所提供的示例中，`sr1()`函数用于将 ICMP 请求发送到无响应地址，因为未收到响应，会在 1 秒后退出。 到目前为止提供的示例中，我们将函数赋值给变量，来创建持久化和可操作的对象。 但是，这些函数不必复制给变量，也可以通过直接调用函数生成。
+
+```
+>>> answer = sr1(IP(dst="172.16.36.135")/ICMP(),timeout=1) 
+.Begin emission:
+...*
+Finished to send 1 packets.
+Received 5 packets, got 1 answers, remaining 0 packets 
+>>> response.display() 
+###[ IP ]###
+  version= 4L
+  ihl= 5L
+  tos= 0x0
+  len= 28
+  id= 62578
+  flags=
+  frag= 0L
+  ttl= 64
+  proto= icmp
+  chksum= 0xe512
+  src= 172.16.36.135
+  dst= 172.16.36.180
+  \options\ 
+###[ ICMP ]###
+     type= echo-reply
+     code= 0
+     chksum= 0xffff
+     id= 0x0
+     seq= 0x0 
+###[ Padding ]###
+        load= '\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\ x00\x00\x00\x00' 
+```
+
+在这里提供的示例中，之前使用四个单独的命令完成的所有工作，实际上可以通过直接调用函数的单个命令来完成。 请注意，如果在超时值指定的时间范围内， ICMP 请求没有收到 IP 地址的回复，调用对象会产生异常。 由于未收到响应，因此此示例中赋值为响应的应答变量不会初始化：
+
+```
+>>> answer = sr1(IP(dst="83.166.169.231")/ICMP(),timeout=1) 
+Begin emission: 
+..........................................
+Finished to send 1 packets. 
+......................................................................... ..........................
+Received 1180 packets, got 0 answers, remaining 1 packets 
+>>> answer.display() 
+Traceback (most recent call last):  File "<console>", line 1, in <module> AttributeError: 'NoneType' object has no attribute 'display'
+```
+
+有关这些不同响应的知识，可以用于生成在多个 IP 地址上按顺序执行 ICMP 请求的脚本。 脚本会循环遍历目标 IP 地址中最后一个八位字节的所有可能值，并为每个值发送一个 ICMP 请求。 当从每个`sr1()`函数返回时，将评估响应来确定是否接收到应答的响应：
+
+```py
+#!/usr/bin/python
+
+import logging 
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR) 
+from scapy.all import *
+
+if len(sys.argv) != 2:   
+    print "Usage - ./pinger.py [/24 network address]"   
+    print "Example - ./pinger.py 172.16.36.0"   
+    print "Example will perform an ICMP scan of the 172.16.36.0/24 range"   
+    sys.exit()
+
+address = str(sys.argv[1]) 
+prefix = address.split('.')[0] + '.' + address.split('.')[1] + '.' + address.split('.')[2] + '.'
+
+for addr in range(1,254):   
+    answer=sr1(ARP(pdst=prefix+str(addr)),timeout=1,verbose=0)   
+    if answer == None:      
+        pass   
+    else:      
+        print prefix+str(addr)
+```
+
+脚本的第一行标识了 Python 解释器所在的位置，以便脚本可以在不传递到解释器的情况下执行。 然后脚本导入所有 Scapy 函数，并定义 Scapy 日志记录级别，以消除脚本中不必要的输出。 还导入了子过程库，以便于从系统调用中提取信息。 第二个代码块是条件测试，用于评估是否向脚本提供了所需的参数。 如果在执行时未提供所需的参数，则脚本将输出使用情况的说明。 该说明包括工具的用法，示例和所执行任务的解释。
+
+在这个代码块之后，有一个单独的代码行将所提供的参数赋值给`interface `变量。下一个代码块使用`check_output()`子进程函数执行`ifconfig`系统调用，该调用也使用`grep`和`cut`从作为参数提供的本地接口提取 IP 地址。然后将此输出赋给`ip`变量。然后使用`split`函数从 IP 地址字符串中提取`/ 24`网络前缀。例如，如果`ip`变量包含`192.168.11.4`字符串，则值为`192.168.11`。它将赋给`prefix `变量。
+
+最后一个代码块是一个用于执行实际扫描的`for`循环。 `for`循环遍历介于 0 和 254 之间的所有值，并且对于每次迭代，该值随后附加到网络前缀后面。在早先提供的示例的中，将针对`192.168.11.0`和`192.168.11.254`之间的每个 IP 地址发送 ICMP 回显请求。然后对于每个回复的活动主机，将相应的 IP 地址打印到屏幕上，以表明主机在 LAN 上活动。一旦脚本被写入本地目录，你可以在终端中使用句号和斜杠，然后是可执行脚本的名称来执行它。看看以下用于执行脚本的命令：
+
+```
+root@KaliLinux:~# ./pinger.py 
+Usage - ./pinger.py [/24 network address] 
+Example - ./pinger.py 172.16.36.0 
+Example will perform an ICMP scan of the 172.16.36.0/24 range 
+root@KaliLinux:~# ./pinger.py 
+172.16.36.0 
+172.16.36.2 
+172.16.36.1 
+172.16.36.132 
+172.16.36.135 
+```
+
+如果在没有提供任何参数的情况下执行脚本，则会将使用方法输出到屏幕。 使用方法输出表明，此脚本需要用于定义要扫描的`/ 24`网络的单个参数。 提供的示例使用`172.16.36.0`网络地址来执行脚本。 该脚本然后输出在`/ 24`网络范围上的活动 IP 地址的列表。 此输出也可以使用尖括号重定向到输出文本文件，后跟输出文件名。 一个例子如下：
+
+```
+root@KaliLinux:~# ./pinger.py 172.16.36.0 > output.txt 
+root@KaliLinux:~# ls output.txt 
+output.txt 
+root@KaliLinux:~# cat output.txt 
+172.16.36.1 
+172.16.36.2 
+172.16.36.132 
+172.16.36.135
+```
+
+然后可以使用`ls`命令来验证输出文件是否已写入文件系统，或者可以使用`cat`命令查看其内容。 也可以修改此脚本，来接受 IP 地址列表作为输入。 为此，必须更改`for`循环来循环遍历从指定的文本文件读取的行。 一个例子如下：
+
+```py
+#!/usr/bin/python
+
+import logging 
+logging.getLogger("scapy.runtime").setLevel(logging.ERROR) 
+from scapy.all import *
+
+if len(sys.argv) != 2:   
+    print "Usage - ./pinger.py [filename]"   
+    print "Example - ./pinger.py iplist.txt"   
+    print "Example will perform an ICMP ping scan of the IP addresses listed in iplist.txt"   
+    sys.exit()
+
+filename = str(sys.argv[1]) 
+file = open(filename,'r')
+
+for addr in file:   
+    ans=sr1(IP(dst=addr.strip())/ICMP(),timeout=1,verbose=0)   
+    if ans == None:      
+        pass   
+    else:      
+        print addr.strip()
+```
+
+与之前的脚本唯一的主要区别是，它接受一个输入文件名作为参数，然后循环遍历此文件中列出的每个 IP 地址进行扫描。 与其他脚本类似，生成的输出包括响应 ICMP 回显请求的系统的相关 IP 地址的简单列表，其中包含 ICMP 回显响应：
+
+```
+root@KaliLinux:~# ./pinger.py 
+Usage - ./pinger.py [filename] 
+Example - ./pinger.py iplist.txt 
+Example will perform an 
+ICMP ping scan of the IP addresses listed in iplist.txt 
+root@KaliLinux:~# ./pinger.py iplist.txt 
+172.16.36.1 
+172.16.36.2 
+172.16.36.132 
+172.16.36.135
+
+```
+
+此脚本的输出可以以相同的方式重定向到输出文件。 使用作为参数提供的输入文件来执行脚本，然后使用尖括号重定向输出，后跟输出文本文件的名称。 一个例子如下：
+
+```
+root@KaliLinux:~# ./pinger.py iplist.txt > output.txt 
+root@KaliLinux:~# ls output.txt 
+output.txt 
+root@KaliLinux:~# cat output.txt 
+172.16.36.1 
+172.16.36.2 
+172.16.36.132 
+172.16.36.135
+
+```
+
+### 工作原理
+
+此处使用 Scapy 通过构造包括 IP 层和附加的 ICMP 请求的请求来执行 ICMP 第三层发现。 IP 层能够将封包路由到本地网络之外，并且 ICMP 请求用于从远程系统请求响应。 在 Python 脚本中使用此技术，可以按顺序执行此任务，来扫描多个系统或整个网络范围。
+
 ## 2.8 使用 Nmap 发现第三层
 
 Nmap 是 Kali Linux 中最强大和最通用的扫描工具之一。 因此，毫不奇怪，Nmap 也支持 ICMP 发现扫描。 该秘籍演示了如何使用 Nmap 在远程主机上执行第三层发现。
