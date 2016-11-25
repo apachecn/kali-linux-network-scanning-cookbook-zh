@@ -946,7 +946,7 @@ Nmap 通过对提供的范围或文本文件中的每个 IP 地址发出 ICMP �
 
 ### 准备
 
-使用 Nmap 执行第三层发现不需要实验环境，因为 Internet 上的许多系统都将回复 ICMP 回显请求。但是，强烈建议你只在您自己的实验环境中执行任何类型的网络扫描，除非你完全熟悉您受到任何管理机构施加的法律法规。如果你希望在实验环境中执行此技术，你需要至少有一个响应 ICMP 请求的系统。在提供的示例中，使用 Linux 和 Windows 系统的组合。有关在本地实验环境中设置系统的更多信息，请参阅第一章中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
+使用`fping`执行第三层发现不需要实验环境，因为 Internet 上的许多系统都将回复 ICMP 回显请求。但是，强烈建议你只在您自己的实验环境中执行任何类型的网络扫描，除非你完全熟悉您受到任何管理机构施加的法律法规。如果你希望在实验环境中执行此技术，你需要至少有一个响应 ICMP 请求的系统。在提供的示例中，使用 Linux 和 Windows 系统的组合。有关在本地实验环境中设置系统的更多信息，请参阅第一章中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
 
 ### 操作步骤
 
@@ -1038,3 +1038,180 @@ ICMP Host Unreachable from 172.16.36.180 for ICMP Echo sent to 172.16.36.205
 
 `fping`工具执行ICMP发现的方式与我们之前讨论的其他工具相同。 对于每个 IP 地址，`fping`发送一个或多个 ICMP 回显请求，然后评估所接收的响应以识别活动主机。 `fping`还可以用于通过提供适当的参数，来扫描一系列系统或 IP 地址的输入列表。 因此，我们不必使用`bash`脚本来操作工具，就像使用`ping`操作一样，使其成为有效的扫描工具。
 
+## 2.10 使用 hping3 探索第三层
+
+`hping3`可以用于以多种不同方式执行主机发现的更多功能。 它比`fping`更强大，因为它可以执行多种不同类型的发现技术，但作为扫描工具不太有用，因为它只能用于定位单个主机。 然而，这个缺点可以使用 bash 脚本克服。 该秘籍演示了如何使用`hping3`在远程主机上执行第3层发现。
+
+### 准备
+
+使用`hping3`执行第三层发现不需要实验环境，因为 Internet 上的许多系统都将回复 ICMP 回显请求。但是，强烈建议你只在您自己的实验环境中执行任何类型的网络扫描，除非你完全熟悉您受到任何管理机构施加的法律法规。如果你希望在实验环境中执行此技术，你需要至少有一个响应 ICMP 请求的系统。在提供的示例中，使用 Linux 和 Windows 系统的组合。有关在本地实验环境中设置系统的更多信息，请参阅第一章中的“安装 Metasploitable2”和“安装 Windows Server”秘籍。
+
+`hping3`是一个非常强大的发现工具，具有大量可操作的选项和模式。它能够在第3层和第4层上执行发现。为了使用`hping3`对单个主机地址执行基本的 ICMP 发现， 只需要将要测试的 IP 地址和所需的 ICMP 扫描模式传递给它：
+
+```
+root@KaliLinux:~# hping3 172.16.36.1 --icmp 
+HPING 172.16.36.1 (eth1 172.16.36.1): icmp mode set, 28 headers + 0 data bytes 
+len=46 ip=172.16.36.1 ttl=64 id=41835 icmp_seq=0 rtt=0.3 ms 
+len=46 ip=172.16.36.1 ttl=64 id=5039 icmp_seq=1 rtt=0.3 ms 
+len=46 ip=172.16.36.1 ttl=64 id=54056 icmp_seq=2 rtt=0.6 ms 
+len=46 ip=172.16.36.1 ttl=64 id=50519 icmp_seq=3 rtt=0.5 ms 
+len=46 ip=172.16.36.1 ttl=64 id=47642 icmp_seq=4 rtt=0.4 ms 
+^C 
+--- 172.16.36.1 hping statistic --5 packets transmitted, 
+5 packets received, 0% packet loss 
+round-trip min/avg/max = 0.3/0.4/0.6 ms
+
+```
+
+提供的演示使用`Ctrl + C`停止进程。与标准`ping`工具类似，`hping3` ICMP 模式将无限继续，除非在初始命令中指定了特定数量的数据包。 为了定义要发送的尝试次数，应包含`-c`选项和一个表示所需尝试次数的整数值：
+
+```
+root@KaliLinux:~# hping3 172.16.36.1 --icmp -c 2 
+HPING 172.16.36.1 (eth1 172.16.36.1): icmp mode set, 28 headers + 0 data bytes 
+len=46 ip=172.16.36.1 ttl=64 id=40746 icmp_seq=0 rtt=0.3 ms 
+len=46 ip=172.16.36.1 ttl=64 id=12231 icmp_seq=1 rtt=0.5 ms
+--- 
+172.16.36.1 hping statistic --
+2 packets transmitted, 2 packets received, 0% packet loss 
+round-trip min/avg/max = 0.3/0.4/0.5 ms
+```
+
+虽然`hping3`默认情况下不支持扫描多个系统，但可以使用 bash 脚本轻易编写脚本。 为了做到这一点，我们必须首先确定与活动地址相关联的输出，以及与非响应地址相关联的输出之间的区别。 为此，我们应该在未分配主机的 IP 地址上使用相同的命令：
+
+```
+root@KaliLinux:~# hping3 172.16.36.4 --icmp -c 2 
+HPING 172.16.36.4 (eth1 172.16.36.4): icmp mode set, 28 headers + 0 data bytes
+--- 
+172.16.36.4 hping statistic --
+2 packets transmitted, 0 packets received, 100% packet loss 
+round-trip min/avg/max = 0.0/0.0/0.0 ms 
+1 packets transmitted, 1 packets received, 0% packet loss 
+round-trip min/avg/max = 0.2/0.2/0.2 ms
+--- 172.16.36.4 hping statistic --
+1 packets transmitted, 0 packets received, 100% packet loss 
+round-trip min/avg/max = 0.0/0.0/0.0 ms 
+```
+
+尽管产生了期望的结果，在这种情况下，`grep`函数似乎不能有效用于输出。 由于`hping3`中的输出显示处理，它难以通过管道传递到`grep`函数，并只提取所需的行，我们可以尝试通过其他方式解决这个问题。 具体来说，我们将尝试确定输出是否可以重定向到一个文件，然后我们可以直接从文件中`grep`。 为此，我们尝试将先前使用的两个命令的输出传递给`handle.txt`文件：
+
+```
+root@KaliLinux:~# hping3 172.16.36.1 --icmp -c 1 >> handle.txt
+
+--- 172.16.36.1 hping statistic --
+1 packets transmitted, 1 packets received, 0% packet loss 
+round-trip min/avg/max = 0.4/0.4/0.4 ms 
+root@KaliLinux:~# hping3 172.16.36.4 --icmp -c 1 >> handle.txt
+
+--- 172.16.36.4 hping statistic --
+1 packets transmitted, 0 packets received, 100% packet loss 
+round-trip min/avg/max = 0.0/0.0/0.0 ms 
+root@KaliLinux:~# cat handle.txt 
+HPING 172.16.36.1 (eth1 172.16.36.1): icmp mode set, 28 headers + 0 data bytes 
+len=46 ip=172.16.36.1 ttl=64 id=56022 icmp_seq=0 rtt=0.4 ms 
+HPING 172.16.36.4 (eth1 172.16.36.4): icmp mode set, 28 headers + 0 data bytes 
+```
+
+虽然这种尝试并不完全成功，因为输出没有完全重定向到文件，我们可以看到通过读取文件中的输出，足以创建一个有效的脚本。 具体来说，我们能够重定向一个唯一的行，该行只与成功的`ping`尝试相关联，并且包含该行中相应的 IP 地址。 要验证此解决方法是否可行，我们需要尝试循环访问`/ 24`范围中的每个地址，然后将结果传递到`handle.txt`文件：
+
+```
+root@KaliLinux:~# for addr in $(seq 1 254); do hping3 172.16.36.$addr --icmp -c 1 >> handle.txt & done
+
+--- 172.16.36.2 hping statistic --
+1 packets transmitted, 1 packets received, 0% packet loss
+round-trip min/avg/max = 6.6/6.6/6.6 ms
+
+--- 172.16.36.1 hping statistic --
+1 packets transmitted, 1 packets received, 0% packet loss 
+round-trip min/avg/max = 55.2/55.2/55.2 ms
+
+--- 172.16.36.8 hping statistic --
+1 packets transmitted, 0 packets received, 100% packet loss 
+round-trip min/avg/max = 0.0/0.0/0.0 ms 
+                    *** {TRUNCATED} ***
+```
+
+通过这样做，仍然有大量的输出（提供的输出为了方便而被截断）包含未重定向到文件的输出。 但是，以下脚本的成功不取决于初始循环的过多输出，而是取决于从输出文件中提取必要信息的能力：
+
+```
+root@KaliLinux:~# ls 
+Desktop  handle.txt  pinger.sh 
+root@KaliLinux:~# grep len handle.txt 
+len=46 ip=172.16.36.2 ttl=128 id=7537 icmp_seq=0 rtt=6.6 ms 
+len=46 ip=172.16.36.1 ttl=64 id=56312 icmp_seq=0 rtt=55.2 ms 
+len=46 ip=172.16.36.132 ttl=64 id=47801 icmp_seq=0 rtt=27.3 ms 
+len=46 ip=172.16.36.135 ttl=64 id=62601 icmp_seq=0 rtt=77.9 ms
+root@KaliLinux:~# grep len handle.txt | cut -d " " -f 2 
+ip=172.16.36.2 
+ip=172.16.36.1 
+ip=172.16.36.132 
+ip=172.16.36.135
+root@KaliLinux:~# grep len handle.txt | cut -d " " -f 2 | cut -d "=" -f 2 
+172.16.36.2 
+172.16.36.1 
+172.16.36.132
+172.16.36.135 
+```
+
+通过将输出使用管道连接到一系列`cut`函数，我们可以从输出中提取 IP 地址。 现在我们已经成功地确定了一种方法，来扫描多个主机并轻易识别结果，我们应该将其集成到一个脚本中。 将所有这些操作组合在一起的功能脚本的示例如下：
+
+```sh
+#!/bin/bash
+
+if [ "$#" -ne 1 ]; then
+    echo "Usage - ./ping_sweep.sh [/24 network address]" 
+    echo "Example - ./ping_sweep.sh 172.16.36.0" 
+    echo "Example will perform an ICMP ping sweep of the 172.16.36.0/24 network and output to an output.txt file" 
+    exit 
+fi
+
+prefix=$(echo $1 | cut -d '.' -f 1-3)
+
+for addr in $(seq 1 254); do 
+    hping3 $prefix.$addr --icmp -c 1 >> handle.txt; 
+done
+
+grep len handle.txt | cut -d " " -f 2 | cut -d "=" -f 2 >> output.txt 
+rm handle.txt 
+```
+
+在提供的 bash 脚本中，第一行定义了 bash 解释器的位置。 接下来的代码块执行测试来确定是否提供了预期的一个参数。 这通过评估提供的参数的数量是否不等于 1 来确定。如果未提供预期参数，则输出脚本的用法，并且退出脚本。 用法输出表明，脚本需要接受`/ 24`网络地址作为参数。 下一行代码从提供的网络地址中提取网络前缀。 例如，如果提供的网络地址是`192.168.11.0`，则前缀变量将被赋值为`192.168.11`。 然后对`/ 24`范围内的每个地址执行`hping3`操作，并将每个任务的结果输出放入`handle.txt`文件中。
+
+一旦完成，`grep`用于从`handle `文件中提取与活动主机响应相关联的行，然后从这些行中提取 IP 地址。 然后将生成的 IP 地址传递到`output.txt`文件，并从目录中删除`handle.txt`临时文件。 此脚本可以使用句号和斜杠，后跟可执行脚本的名称执行：
+
+```
+root@KaliLinux:~# ./ping_sweep.sh 
+Usage - ./ping_sweep.sh [/24 network address] 
+Example - ./ping_sweep.sh 172.16.36.0 
+Example will perform an ICMP ping sweep of the 172.16.36.0/24 network and output to an output.txt file 
+root@KaliLinux:~# ./ping_sweep.sh 172.16.36.0
+--- 172.16.36.1 hping statistic --
+1 packets transmitted, 1 packets received, 0% packet loss 
+round-trip min/avg/max = 0.4/0.4/0.4 ms
+--- 172.16.36.2 hping statistic --
+1 packets transmitted, 1 packets received, 0% packet loss 
+round-trip min/avg/max = 0.5/0.5/0.5 ms
+--- 172.16.36.3 hping statistic --
+1 packets transmitted, 0 packets received, 100% packet loss 
+round-trip min/avg/max = 0.0/0.0/0.0 ms
+                        *** {TRUNCATED} ***
+```
+
+一旦完成，脚本应该返回一个`output.txt`文件到执行目录。 这可以使用`ls`验证，并且`cat`命令可以用于查看此文件的内容：
+
+```
+root@KaliLinux:~# ls output.txt 
+output.txt 
+root@KaliLinux:~# cat output.txt 
+172.16.36.1 
+172.16.36.2 
+172.16.36.132 
+172.16.36.135 
+172.16.36.253
+
+```
+
+当脚本运行时，你仍然会看到在初始循环任务时看到的大量输出。 幸运的是，你发现的主机列表不会在此输出中消失，因为它每次都会写入你的输出文件。
+
+### 工作原理
+
+我们需要进行一些调整，才能使用`hping3`对多个主机或地址范围执行主机发现。 提供的秘籍使用 bash 脚本顺序执行 ICMP 回应请求。 这是可性的，因为成功和不成功的请求能够生成唯一响应。 通过将函数传递给一个循环，并将唯一响应传递给`grep`，我们可以高效开发出一个脚本，对多个系统依次执行 ICMP 发现，然后输出活动主机列表。
